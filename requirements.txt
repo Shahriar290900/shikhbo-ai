@@ -15,3 +15,4 @@ torch==2.4.1+cpu
 accelerate==1.0.1
 numpy==1.26.4
 huggingface_hub==0.25.2
+hf_transfer>=0.1.4

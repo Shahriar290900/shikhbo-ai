@@ -21,6 +21,8 @@ Required env vars:
 import base64
 import os
 import tempfile
+import threading
+import time
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -39,36 +41,44 @@ VISION_ENABLED = os.environ.get("VISION_ENABLED", "false").lower() == "true"
 # ── startup / shutdown ────────────────────────────────────────────────────────
 
 _state: dict[str, Any] = {"rag": None, "llm": None, "vision_model": None}
+_llm_lock = threading.Lock()
+
+
+def _ensure_llm_loaded() -> None:
+    if _state["llm"] is not None:
+        return
+    with _llm_lock:
+        if _state["llm"] is not None:
+            return
+        for attempt in range(1, 4):
+            try:
+                print(f"Loading LLM: {LLM_MODEL} on {LLM_DEVICE}… (attempt {attempt}/3)")
+                from transformers import pipeline
+                _state["llm"] = pipeline(
+                    "text-generation",
+                    model=LLM_MODEL,
+                    device_map=LLM_DEVICE,
+                    torch_dtype="auto",
+                    trust_remote_code=True,
+                )
+                print(f"LLM loaded: {LLM_MODEL}")
+                return
+            except Exception as exc:
+                if attempt == 3:
+                    print(f"[error] LLM failed after 3 attempts: {exc}")
+                    return
+                print(f"[warn] LLM attempt {attempt} failed: {exc}. Retrying in 10s…")
+                time.sleep(10)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # run ingest if indices are missing
     from ingest import run_ingest
     run_ingest()
 
-    # load RAG
     from rag import ShikhboRAG
     _state["rag"] = ShikhboRAG()
-
-    # load LLM
-    print(f"Loading LLM: {LLM_MODEL} on {LLM_DEVICE}…")
-    try:
-        import torch
-        from transformers import pipeline
-
-        dtype = "auto"
-        _state["llm"] = pipeline(
-            "text-generation",
-            model=LLM_MODEL,
-            device_map=LLM_DEVICE,
-            torch_dtype=dtype,
-            trust_remote_code=True,
-        )
-        print(f"LLM loaded: {LLM_MODEL}")
-    except Exception as exc:
-        print(f"[warn] LLM failed to load: {exc}")
-        _state["llm"] = None
+    # LLM and reranker load lazily on first /chat request
 
     yield
 
@@ -118,6 +128,8 @@ class Source(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
     answer: str
     sources: list[Source]
     grounded: bool
@@ -270,6 +282,8 @@ def chat(req: ChatRequest) -> ChatResponse:
     rag = _state["rag"]
     if rag is None:
         raise HTTPException(status_code=503, detail="RAG not initialised")
+
+    _ensure_llm_loaded()
 
     try:
         chunks, grounded = rag.retrieve(

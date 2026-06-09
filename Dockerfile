@@ -11,6 +11,8 @@ WORKDIR /app
 
 ENV HF_HOME=/app/.cache
 ENV HF_HUB_CACHE=/app/.cache/huggingface
+ENV HF_HUB_ENABLE_HF_TRANSFER=1
+ENV HF_HUB_DOWNLOAD_TIMEOUT=60
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

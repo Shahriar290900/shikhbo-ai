@@ -13,11 +13,27 @@ import json
 import os
 import pickle
 import re
+import threading
+import time
 from pathlib import Path
 
 import faiss
 import numpy as np
 from FlagEmbedding import BGEM3FlagModel, FlagReranker
+
+
+def _load_with_retry(name: str, loader, retries: int = 3, delay: float = 10.0):
+    for attempt in range(1, retries + 1):
+        try:
+            print(f"Loading {name}… (attempt {attempt}/{retries})")
+            obj = loader()
+            print(f"{name} ready.")
+            return obj
+        except Exception as exc:
+            if attempt == retries:
+                raise RuntimeError(f"Failed to load {name} after {retries} attempts") from exc
+            print(f"[warn] {name} attempt {attempt} failed: {exc}. Retrying in {delay}s…")
+            time.sleep(delay)
 
 DATA_DIR = Path("data")
 
@@ -77,14 +93,23 @@ class ShikhboRAG:
     def __init__(self) -> None:
         self._load_chunks()
         self._load_indices()
-
-        print("Loading BAAI/bge-m3 for query encoding…")
-        self._embed_model = BGEM3FlagModel("BAAI/bge-m3", use_fp16=False)
-
-        print("Loading BAAI/bge-reranker-v2-m3…")
-        self._reranker = FlagReranker("BAAI/bge-reranker-v2-m3", use_fp16=False)
-
+        self._embed_model = _load_with_retry(
+            "BAAI/bge-m3",
+            lambda: BGEM3FlagModel("BAAI/bge-m3", use_fp16=False),
+        )
+        self._reranker_obj: object | None = None
+        self._reranker_lock = threading.Lock()
         print("ShikhboRAG ready.")
+
+    def _get_reranker(self) -> FlagReranker:
+        if self._reranker_obj is None:
+            with self._reranker_lock:
+                if self._reranker_obj is None:
+                    self._reranker_obj = _load_with_retry(
+                        "BAAI/bge-reranker-v2-m3",
+                        lambda: FlagReranker("BAAI/bge-reranker-v2-m3", use_fp16=False),
+                    )
+        return self._reranker_obj
 
     # ── loading helpers ───────────────────────────────────────────────────────
 
@@ -181,7 +206,7 @@ class ShikhboRAG:
         if not pairs:
             return [], False
 
-        scores = self._reranker.compute_score(pairs, normalize=True)
+        scores = self._get_reranker().compute_score(pairs, normalize=True)
         if isinstance(scores, float):
             scores = [scores]
 
