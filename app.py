@@ -53,14 +53,25 @@ def _ensure_llm_loaded() -> None:
         for attempt in range(1, 4):
             try:
                 print(f"Loading LLM: {LLM_MODEL} on {LLM_DEVICE}… (attempt {attempt}/3)")
+                import torch
                 from transformers import pipeline
-                _state["llm"] = pipeline(
-                    "text-generation",
-                    model=LLM_MODEL,
-                    device_map=LLM_DEVICE,
-                    torch_dtype="auto",
-                    trust_remote_code=True,
-                )
+                if LLM_DEVICE == "cpu":
+                    pipe = pipeline(
+                        "text-generation",
+                        model=LLM_MODEL,
+                        device=-1,
+                        torch_dtype=torch.float32,
+                        trust_remote_code=True,
+                    )
+                else:
+                    pipe = pipeline(
+                        "text-generation",
+                        model=LLM_MODEL,
+                        device_map="auto",
+                        torch_dtype="auto",
+                        trust_remote_code=True,
+                    )
+                _state["llm"] = pipe
                 print(f"LLM loaded: {LLM_MODEL}")
                 return
             except Exception as exc:
