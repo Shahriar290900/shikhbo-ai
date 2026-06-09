@@ -71,7 +71,6 @@ def _ensure_llm_loaded() -> None:
                     torch_dtype=torch.float16,
                     device_map="auto",
                     attn_implementation="sdpa",
-                    use_safetensors=True,
                     trust_remote_code=True,
                 )),
                 ("GPU 8-bit", dict(
@@ -79,7 +78,6 @@ def _ensure_llm_loaded() -> None:
                     torch_dtype=torch.float16,
                     device_map="auto",
                     attn_implementation="sdpa",
-                    use_safetensors=True,
                     trust_remote_code=True,
                 )),
             ]
@@ -88,7 +86,6 @@ def _ensure_llm_loaded() -> None:
                 ("CPU float32", dict(
                     torch_dtype=torch.float32,
                     attn_implementation="eager",
-                    use_safetensors=True,
                     trust_remote_code=True,
                 )),
             ]
