@@ -19,7 +19,7 @@ from pathlib import Path
 
 import faiss
 import numpy as np
-from FlagEmbedding import BGEM3FlagModel
+from sentence_transformers import SentenceTransformer
 from rank_bm25 import BM25Okapi
 
 DATA_DIR = Path("data")
@@ -201,20 +201,14 @@ def corpus_key(chunk: dict) -> str:
 
 # ── embedding ─────────────────────────────────────────────────────────────────
 
-def compute_embeddings(model: BGEM3FlagModel, texts: list[str], batch_size: int = 32) -> np.ndarray:
-    all_vecs = []
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i : i + batch_size]
-        out = model.encode(batch, batch_size=len(batch), max_length=512)
-        vecs = out["dense_vecs"]
-        all_vecs.append(np.array(vecs, dtype=np.float32))
-        if (i // batch_size) % 5 == 0:
-            print(f"    embedded {min(i + batch_size, len(texts))}/{len(texts)}")
-    vecs = np.vstack(all_vecs)
-    # L2-normalise for cosine via IndexFlatIP
-    norms = np.linalg.norm(vecs, axis=1, keepdims=True)
-    norms = np.where(norms == 0, 1.0, norms)
-    return (vecs / norms).astype(np.float32)
+def compute_embeddings(model: SentenceTransformer, texts: list[str], batch_size: int = 32) -> np.ndarray:
+    vecs = model.encode(
+        texts,
+        batch_size=batch_size,
+        normalize_embeddings=True,
+        show_progress_bar=True,
+    )
+    return np.array(vecs, dtype=np.float32)
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -255,8 +249,8 @@ def run_ingest(force: bool = False) -> None:
     print(f"  Corpus keys: {list(by_key.keys())}")
 
     # ── 4. load embedding model ──
-    print("Loading BAAI/bge-m3 (this downloads ~570 MB on first run)…")
-    model = BGEM3FlagModel("BAAI/bge-m3", use_fp16=False)
+    print("Loading BAAI/bge-m3…")
+    model = SentenceTransformer("BAAI/bge-m3", device="cpu")
 
     # ── 5. per-corpus FAISS + BM25 ──
     for key, idx_chunk_pairs in by_key.items():

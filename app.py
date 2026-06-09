@@ -33,14 +33,14 @@ from pydantic import BaseModel, Field
 # ── env ───────────────────────────────────────────────────────────────────────
 
 API_TOKEN = os.environ.get("API_TOKEN", "")
-LLM_MODEL = os.environ.get("LLM_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
+LLM_MODEL = os.environ.get("LLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct")
 LLM_DEVICE = os.environ.get("LLM_DEVICE", "cpu")
 MAX_NEW_TOKENS = int(os.environ.get("MAX_NEW_TOKENS", "512"))
-VISION_ENABLED = os.environ.get("VISION_ENABLED", "false").lower() == "true"
+VISION_ENABLED = os.environ.get("VISION_ENABLED", "true").lower() == "true"
 
 # ── startup / shutdown ────────────────────────────────────────────────────────
 
-_state: dict[str, Any] = {"rag": None, "llm": None, "vision_model": None}
+_state: dict[str, Any] = {"rag": None, "llm": None, "llm_processor": None, "vision_model": None}
 _llm_lock = threading.Lock()
 
 
@@ -52,27 +52,27 @@ def _ensure_llm_loaded() -> None:
             return
         for attempt in range(1, 4):
             try:
-                print(f"Loading LLM: {LLM_MODEL} on {LLM_DEVICE}… (attempt {attempt}/3)")
+                print(f"Loading {LLM_MODEL}… (attempt {attempt}/3)")
                 import torch
-                from transformers import pipeline
+                from transformers import AutoProcessor, AutoModelForVision2Seq, BitsAndBytesConfig
+                bnb = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.float16,
+                )
+                model = AutoModelForVision2Seq.from_pretrained(
+                    LLM_MODEL,
+                    quantization_config=bnb if LLM_DEVICE != "cpu" else None,
+                    torch_dtype=torch.float16 if LLM_DEVICE != "cpu" else torch.float32,
+                    device_map="auto" if LLM_DEVICE != "cpu" else None,
+                    trust_remote_code=True,
+                )
                 if LLM_DEVICE == "cpu":
-                    pipe = pipeline(
-                        "text-generation",
-                        model=LLM_MODEL,
-                        device=-1,
-                        torch_dtype=torch.float32,
-                        trust_remote_code=True,
-                    )
-                else:
-                    pipe = pipeline(
-                        "text-generation",
-                        model=LLM_MODEL,
-                        device_map="auto",
-                        torch_dtype="auto",
-                        trust_remote_code=True,
-                    )
-                _state["llm"] = pipe
-                print(f"LLM loaded: {LLM_MODEL}")
+                    model = model.to("cpu")
+                processor = AutoProcessor.from_pretrained(LLM_MODEL, trust_remote_code=True)
+                _state["llm"] = model
+                _state["llm_processor"] = processor
+                print(f"{LLM_MODEL} loaded.")
                 return
             except Exception as exc:
                 if attempt == 3:
@@ -258,33 +258,30 @@ def _build_user_prompt(
 # ── LLM generation ────────────────────────────────────────────────────────────
 
 def _generate(system: str, user: str) -> str:
-    llm = _state["llm"]
-    if llm is None:
+    model = _state["llm"]
+    processor = _state["llm_processor"]
+    if model is None or processor is None:
         return "[LLM not loaded — check server logs]"
 
     messages = [
         {"role": "system", "content": system},
-        {"role": "user", "content": user},
+        {"role": "user", "content": [{"type": "text", "text": user}]},
     ]
     try:
-        out = llm(
-            messages,
-            max_new_tokens=MAX_NEW_TOKENS,
-            do_sample=True,
-            temperature=0.7,
-            top_p=0.9,
-            repetition_penalty=1.3,
-            return_full_text=False,
+        import torch
+        text_input = processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
         )
-        # pipeline returns list of dicts; extract generated text
-        if isinstance(out, list) and out:
-            item = out[0]
-            if isinstance(item, dict):
-                generated = item.get("generated_text", "")
-                if isinstance(generated, list) and generated:
-                    return generated[-1].get("content", str(generated))
-                return str(generated)
-        return str(out)
+        inputs = processor(text=[text_input], return_tensors="pt").to(model.device)
+        with torch.no_grad():
+            output_ids = model.generate(
+                **inputs,
+                max_new_tokens=MAX_NEW_TOKENS,
+                do_sample=False,
+                repetition_penalty=1.3,
+            )
+        trimmed = output_ids[:, inputs["input_ids"].shape[1]:]
+        return processor.batch_decode(trimmed, skip_special_tokens=True)[0].strip()
     except Exception as exc:
         return f"[Generation error: {exc}]"
 
@@ -330,33 +327,15 @@ def vision(req: VisionRequest) -> VisionResponse:
     if not VISION_ENABLED:
         raise HTTPException(
             status_code=503,
-            detail="Vision requires GPU tier. Set VISION_ENABLED=true on a GPU Space.",
+            detail="Vision not enabled. Set VISION_ENABLED=true.",
         )
 
-    # lazy-load vision model
-    if _state["vision_model"] is None:
-        print("Lazy-loading Qwen2.5-VL-7B-Instruct…")
-        try:
-            from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
-            _state["vision_model"] = {
-                "model": Qwen2VLForConditionalGeneration.from_pretrained(
-                    "Qwen/Qwen2.5-VL-7B-Instruct",
-                    torch_dtype="auto",
-                    device_map=LLM_DEVICE,
-                    trust_remote_code=True,
-                ),
-                "processor": AutoProcessor.from_pretrained(
-                    "Qwen/Qwen2.5-VL-7B-Instruct", trust_remote_code=True
-                ),
-            }
-        except Exception as exc:
-            raise HTTPException(status_code=503, detail=f"Vision model load failed: {exc}")
+    _ensure_llm_loaded()
+    model = _state["llm"]
+    processor = _state["llm_processor"]
+    if model is None or processor is None:
+        raise HTTPException(status_code=503, detail="VL model not loaded.")
 
-    vm = _state["vision_model"]
-    model = vm["model"]
-    processor = vm["processor"]
-
-    # decode and save image to a temp file
     try:
         image_bytes = base64.b64decode(req.image_base64)
     except Exception:
@@ -368,6 +347,7 @@ def vision(req: VisionRequest) -> VisionResponse:
 
     try:
         from PIL import Image
+        import torch
         image = Image.open(tmp_path).convert("RGB")
 
         messages = [
@@ -377,10 +357,7 @@ def vision(req: VisionRequest) -> VisionResponse:
                     {"type": "image", "image": image},
                     {
                         "type": "text",
-                        "text": (
-                            f"Extract all text from this image. "
-                            f"Then answer: {req.query}"
-                        ),
+                        "text": f"Extract all text from this image. Then answer: {req.query}",
                     },
                 ],
             }
@@ -391,18 +368,11 @@ def vision(req: VisionRequest) -> VisionResponse:
         inputs = processor(text=[text_input], images=[image], return_tensors="pt")
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
-        import torch
         with torch.no_grad():
-            generated_ids = model.generate(**inputs, max_new_tokens=512)
-        generated_ids_trimmed = [
-            out[len(in_ids):]
-            for in_ids, out in zip(inputs["input_ids"], generated_ids)
-        ]
-        raw_output = processor.batch_decode(
-            generated_ids_trimmed, skip_special_tokens=True
-        )[0]
+            generated_ids = model.generate(**inputs, max_new_tokens=512, do_sample=False, repetition_penalty=1.3)
+        trimmed = [out[len(in_ids):] for in_ids, out in zip(inputs["input_ids"], generated_ids)]
+        raw_output = processor.batch_decode(trimmed, skip_special_tokens=True)[0]
 
-        # split: assume first paragraph = extracted text, rest = answer
         parts = raw_output.split("\n\n", 1)
         extracted_text = parts[0].strip()
         ocr_answer = parts[1].strip() if len(parts) > 1 else raw_output.strip()
@@ -410,13 +380,11 @@ def vision(req: VisionRequest) -> VisionResponse:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Vision processing error: {exc}")
     finally:
-        import os as _os
         try:
-            _os.unlink(tmp_path)
+            os.unlink(tmp_path)
         except OSError:
             pass
 
-    # run RAG on extracted text + query
     rag = _state["rag"]
     combined_query = f"{extracted_text}\n\n{req.query}".strip()
     try:

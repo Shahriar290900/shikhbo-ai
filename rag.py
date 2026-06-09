@@ -17,9 +17,10 @@ import threading
 import time
 from pathlib import Path
 
+import torch
 import faiss
 import numpy as np
-from FlagEmbedding import BGEM3FlagModel, FlagReranker
+from sentence_transformers import SentenceTransformer, CrossEncoder
 
 
 def _load_with_retry(name: str, loader, retries: int = 3, delay: float = 10.0):
@@ -93,23 +94,27 @@ class ShikhboRAG:
     def __init__(self) -> None:
         self._load_chunks()
         self._load_indices()
-        _use_fp16 = os.getenv("LLM_DEVICE", "cpu") != "cpu"
+        _device = "cuda" if os.getenv("LLM_DEVICE", "cpu") != "cpu" else "cpu"
         self._embed_model = _load_with_retry(
             "BAAI/bge-m3",
-            lambda: BGEM3FlagModel("BAAI/bge-m3", use_fp16=_use_fp16),
+            lambda: SentenceTransformer("BAAI/bge-m3", device=_device),
         )
         self._reranker_obj: object | None = None
         self._reranker_lock = threading.Lock()
         print("ShikhboRAG ready.")
 
-    def _get_reranker(self) -> FlagReranker:
+    def _get_reranker(self) -> CrossEncoder:
         if self._reranker_obj is None:
             with self._reranker_lock:
                 if self._reranker_obj is None:
-                    _use_fp16 = os.getenv("LLM_DEVICE", "cpu") != "cpu"
+                    _device = "cuda" if os.getenv("LLM_DEVICE", "cpu") != "cpu" else "cpu"
                     self._reranker_obj = _load_with_retry(
                         "BAAI/bge-reranker-v2-m3",
-                        lambda: FlagReranker("BAAI/bge-reranker-v2-m3", use_fp16=_use_fp16),
+                        lambda: CrossEncoder(
+                            "BAAI/bge-reranker-v2-m3",
+                            device=_device,
+                            default_activation_function=torch.nn.Sigmoid(),
+                        ),
                     )
         return self._reranker_obj
 
@@ -208,9 +213,8 @@ class ShikhboRAG:
         if not pairs:
             return [], False
 
-        scores = self._get_reranker().compute_score(pairs, normalize=True)
-        if isinstance(scores, float):
-            scores = [scores]
+        raw = self._get_reranker().predict(pairs)
+        scores = list(raw) if hasattr(raw, "__iter__") else [float(raw)]
 
         ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
 
@@ -239,12 +243,8 @@ class ShikhboRAG:
     # ── internals ─────────────────────────────────────────────────────────────
 
     def _embed_query(self, query: str) -> np.ndarray:
-        out = self._embed_model.encode([query], batch_size=1, max_length=512)
-        vec = np.array(out["dense_vecs"][0], dtype=np.float32)
-        norm = np.linalg.norm(vec)
-        if norm > 0:
-            vec = vec / norm
-        return vec.reshape(1, -1)
+        vec = self._embed_model.encode([query], normalize_embeddings=True)
+        return np.array(vec, dtype=np.float32).reshape(1, -1)
 
     def _dense_search(self, key: str, query_vec: np.ndarray, top_n: int) -> list[str]:
         index = self._faiss[key]

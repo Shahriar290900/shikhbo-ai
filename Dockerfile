@@ -22,7 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # them independently — changing app code will NOT re-trigger these layers
 RUN huggingface-cli download BAAI/bge-m3 --quiet
 RUN huggingface-cli download BAAI/bge-reranker-v2-m3 --quiet
-RUN huggingface-cli download Qwen/Qwen2.5-1.5B-Instruct --quiet
+RUN huggingface-cli download Qwen/Qwen2.5-VL-7B-Instruct --quiet
 
 # copy app code last — model layers above stay cached on every code change
 COPY . .
