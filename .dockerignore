@@ -1,10 +1,17 @@
 .git
 .env
+.env.example
 .env.local
 .DS_Store
+.gitignore
+.gitattributes
+.empty
 __pycache__
 *.pyc
 .venv
 venv
 docs
 data
+CLAUDE.md
+README.md
+README_HF.md

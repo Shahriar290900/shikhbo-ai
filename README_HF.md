@@ -50,7 +50,7 @@ The Space will build automatically. Watch logs at
 `https://huggingface.co/spaces/YOUR_USERNAME/shikhbo-backend` → **Logs** tab.
 
 First build downloads bge-m3 (~570 MB), bge-reranker (~570 MB), and the LLM
-(~3 GB for 1.5B model). Allow ~10–15 minutes.
+(~15 GB for 7B VL model). Allow ~30–45 minutes on first build.
 
 ---
 
@@ -61,11 +61,11 @@ Go to your Space → **Settings** → **Repository secrets**:
 | Secret | Value | Notes |
 |---|---|---|
 | `API_TOKEN` | A random secret string | Shared with your Supabase Edge Function |
-| `LLM_MODEL` | `Qwen/Qwen2.5-1.5B-Instruct` | CPU default; swap to 7B for GPU demo |
-| `LLM_DEVICE` | `cpu` | Change to `cuda` on a GPU Space |
-| `MAX_NEW_TOKENS` | `512` | Increase on GPU if needed |
+| `LLM_MODEL` | `Qwen/Qwen2.5-VL-7B-Instruct` | Vision-language model (text + OCR) |
+| `LLM_DEVICE` | `cuda` | `cpu` only as fallback — GPU required for 7B |
+| `MAX_NEW_TOKENS` | `512` | Increase on GPU if answers are truncated |
 | `CONFIDENCE_THRESHOLD` | `0.3` | Lower = more results; higher = stricter grounding |
-| `VISION_ENABLED` | `false` | Set `true` only on a GPU Space |
+| `VISION_ENABLED` | `true` | Set `false` on CPU Space |
 
 ---
 
@@ -124,19 +124,19 @@ curl -s -X POST $HF_URL/vision \
   -d '{"image_base64":"AA==","query":"test","subject":"ICT","curriculum":"NCTB","class":"SSC"}'
 ```
 
-Expected for vision on CPU: `{"detail":"Vision requires GPU tier…"}`
+Expected when disabled: `{"detail":"Vision not enabled. Set VISION_ENABLED=true."}`
 
 ---
 
 ## 6. Demo day — upgrade to GPU
 
-For the June 11–12 demo, upgrade to a T4 Small GPU Space (~$0.40/hr):
+For the June 11–12 demo on T4 Small GPU Space (~$0.40/hr):
 
 1. Go to Space → **Settings** → **Space hardware** → **T4 Small**
-2. Update secrets:
-   - `LLM_MODEL` → `Qwen/Qwen2.5-7B-Instruct`
-   - `LLM_DEVICE` → `cuda`
-   - `VISION_ENABLED` → `true`
+2. Confirm secrets are set (should already be correct):
+   - `LLM_MODEL` = `Qwen/Qwen2.5-VL-7B-Instruct`
+   - `LLM_DEVICE` = `cuda`
+   - `VISION_ENABLED` = `true`
 3. Restart the Space 1 hour before demo to let it warm up
 
 **After the demo — spin it back down to CPU to stop billing:**
@@ -174,7 +174,7 @@ POST /chat  (this Space)
   │    ├─ BM25 sparse  (language-aware tokeniser)
   │    ├─ RRF fusion
   │    └─ bge-reranker-v2-m3 → confidence gate
-  └─ LLM generation (Qwen2.5-1.5B/7B)
+  └─ LLM generation (Qwen2.5-VL-7B, 4-bit NF4 on GPU)
        └─ answer + sources + grounded flag
 ```
 

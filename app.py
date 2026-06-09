@@ -3,7 +3,7 @@ app.py — Shikhbo FastAPI backend.
 
 Endpoints:
   POST /chat   — RAG-grounded answer generation
-  POST /vision — OCR + RAG (GPU only; returns 503 on CPU Space)
+  POST /vision — OCR + RAG (GPU only; returns 503 when VISION_ENABLED=false)
   GET  /health — liveness check
 
 Run locally (after ingest.py):
@@ -11,11 +11,11 @@ Run locally (after ingest.py):
 
 Required env vars:
   API_TOKEN           — Bearer token checked on every request
-  LLM_MODEL           — HF model ID (default: Qwen/Qwen2.5-1.5B-Instruct)
+  LLM_MODEL           — HF model ID (default: Qwen/Qwen2.5-VL-7B-Instruct)
   LLM_DEVICE          — "cpu" | "cuda" (default: cpu)
   MAX_NEW_TOKENS      — int (default: 512)
   CONFIDENCE_THRESHOLD— float (default: 0.3)
-  VISION_ENABLED      — "true" | "false" (default: false)
+  VISION_ENABLED      — "true" | "false" (default: true)
 """
 
 import base64
@@ -40,7 +40,7 @@ VISION_ENABLED = os.environ.get("VISION_ENABLED", "true").lower() == "true"
 
 # ── startup / shutdown ────────────────────────────────────────────────────────
 
-_state: dict[str, Any] = {"rag": None, "llm": None, "llm_processor": None, "vision_model": None}
+_state: dict[str, Any] = {"rag": None, "llm": None, "llm_processor": None}
 _llm_lock = threading.Lock()
 
 
@@ -65,6 +65,7 @@ def _ensure_llm_loaded() -> None:
                     quantization_config=bnb if LLM_DEVICE != "cpu" else None,
                     torch_dtype=torch.float16 if LLM_DEVICE != "cpu" else torch.float32,
                     device_map="auto" if LLM_DEVICE != "cpu" else None,
+                    attn_implementation="sdpa" if LLM_DEVICE != "cpu" else "eager",
                     trust_remote_code=True,
                 )
                 if LLM_DEVICE == "cpu":
@@ -95,7 +96,7 @@ async def lifespan(app: FastAPI):
 
     _state["rag"] = None
     _state["llm"] = None
-    _state["vision_model"] = None
+    _state["llm_processor"] = None
 
 
 app = FastAPI(title="Shikhbo AI Backend", version="1.0.0", lifespan=lifespan)
@@ -348,6 +349,7 @@ def vision(req: VisionRequest) -> VisionResponse:
     try:
         from PIL import Image
         import torch
+        from qwen_vl_utils import process_vision_info
         image = Image.open(tmp_path).convert("RGB")
 
         messages = [
@@ -365,11 +367,23 @@ def vision(req: VisionRequest) -> VisionResponse:
         text_input = processor.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
-        inputs = processor(text=[text_input], images=[image], return_tensors="pt")
+        image_inputs, video_inputs = process_vision_info(messages)
+        inputs = processor(
+            text=[text_input],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        )
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
         with torch.no_grad():
-            generated_ids = model.generate(**inputs, max_new_tokens=512, do_sample=False, repetition_penalty=1.3)
+            generated_ids = model.generate(
+                **inputs,
+                max_new_tokens=512,
+                do_sample=False,
+                repetition_penalty=1.3,
+            )
         trimmed = [out[len(in_ids):] for in_ids, out in zip(inputs["input_ids"], generated_ids)]
         raw_output = processor.batch_decode(trimmed, skip_special_tokens=True)[0]
 
