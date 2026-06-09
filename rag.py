@@ -93,9 +93,10 @@ class ShikhboRAG:
     def __init__(self) -> None:
         self._load_chunks()
         self._load_indices()
+        _use_fp16 = os.getenv("LLM_DEVICE", "cpu") != "cpu"
         self._embed_model = _load_with_retry(
             "BAAI/bge-m3",
-            lambda: BGEM3FlagModel("BAAI/bge-m3", use_fp16=False),
+            lambda: BGEM3FlagModel("BAAI/bge-m3", use_fp16=_use_fp16),
         )
         self._reranker_obj: object | None = None
         self._reranker_lock = threading.Lock()
@@ -105,9 +106,10 @@ class ShikhboRAG:
         if self._reranker_obj is None:
             with self._reranker_lock:
                 if self._reranker_obj is None:
+                    _use_fp16 = os.getenv("LLM_DEVICE", "cpu") != "cpu"
                     self._reranker_obj = _load_with_retry(
                         "BAAI/bge-reranker-v2-m3",
-                        lambda: FlagReranker("BAAI/bge-reranker-v2-m3", use_fp16=False),
+                        lambda: FlagReranker("BAAI/bge-reranker-v2-m3", use_fp16=_use_fp16),
                     )
         return self._reranker_obj
 
