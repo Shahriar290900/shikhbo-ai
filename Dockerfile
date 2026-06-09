@@ -22,9 +22,10 @@ COPY . .
 
 RUN mkdir -p /app/data /app/.cache && \
     useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
+    chown -R appuser:appuser /app && \
+    chmod +x /app/startup.sh
 USER appuser
 
 EXPOSE 7860
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["bash", "/app/startup.sh"]

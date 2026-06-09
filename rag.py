@@ -101,21 +101,29 @@ class ShikhboRAG:
         )
         self._reranker_obj: object | None = None
         self._reranker_lock = threading.Lock()
+        self._reranker_failed: bool = False
         print("ShikhboRAG ready.")
 
-    def _get_reranker(self) -> CrossEncoder:
+    def _get_reranker(self) -> CrossEncoder | None:
+        if self._reranker_failed:
+            return None
         if self._reranker_obj is None:
             with self._reranker_lock:
-                if self._reranker_obj is None:
+                if self._reranker_obj is None and not self._reranker_failed:
                     _device = "cuda" if os.getenv("LLM_DEVICE", "cpu") != "cpu" else "cpu"
-                    self._reranker_obj = _load_with_retry(
-                        "BAAI/bge-reranker-v2-m3",
-                        lambda: CrossEncoder(
+                    try:
+                        self._reranker_obj = _load_with_retry(
                             "BAAI/bge-reranker-v2-m3",
-                            device=_device,
-                            default_activation_function=torch.nn.Sigmoid(),
-                        ),
-                    )
+                            lambda: CrossEncoder(
+                                "BAAI/bge-reranker-v2-m3",
+                                device=_device,
+                                default_activation_function=torch.nn.Sigmoid(),
+                            ),
+                        )
+                    except Exception as exc:
+                        print(f"[warn] Reranker failed to load: {exc}. Falling back to RRF scores.")
+                        self._reranker_failed = True
+                        return None
         return self._reranker_obj
 
     # ── loading helpers ───────────────────────────────────────────────────────
@@ -208,26 +216,31 @@ class ShikhboRAG:
         if not candidates:
             return [], False
 
-        # ── rerank ──
-        pairs = [(query, self._chunks[cid]["content"]) for cid in candidates if cid in self._chunks]
-        if not pairs:
-            return [], False
+        # ── rerank (optional — falls back to raw RRF order if reranker unavailable) ──
+        reranker = self._get_reranker()
+        if reranker is not None:
+            pairs = [(query, self._chunks[cid]["content"]) for cid in candidates if cid in self._chunks]
+            if not pairs:
+                return [], False
+            try:
+                raw = reranker.predict(pairs)
+                scores = list(raw) if hasattr(raw, "__iter__") else [float(raw)]
+                ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
+                max_score = ranked[0][1] if ranked else 0.0
+                if max_score < threshold:
+                    return [], False
+                result_chunks = [
+                    self._chunks[cid]
+                    for cid, _ in ranked[:top_k]
+                    if cid in self._chunks
+                ]
+            except Exception as exc:
+                print(f"[warn] Reranker prediction failed: {exc}. Using RRF order.")
+                result_chunks = [self._chunks[cid] for cid in candidates[:top_k] if cid in self._chunks]
+        else:
+            result_chunks = [self._chunks[cid] for cid in candidates[:top_k] if cid in self._chunks]
 
-        raw = self._get_reranker().predict(pairs)
-        scores = list(raw) if hasattr(raw, "__iter__") else [float(raw)]
-
-        ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
-
-        max_score = ranked[0][1] if ranked else 0.0
-        if max_score < threshold:
-            return [], False
-
-        result_chunks = [
-            self._chunks[cid]
-            for cid, _ in ranked[:top_k]
-            if cid in self._chunks
-        ]
-        return result_chunks, True
+        return result_chunks, len(result_chunks) > 0
 
     def format_sources(self, chunks: list[dict]) -> list[dict]:
         return [

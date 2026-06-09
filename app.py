@@ -40,57 +40,98 @@ VISION_ENABLED = os.environ.get("VISION_ENABLED", "true").lower() == "true"
 
 # ── startup / shutdown ────────────────────────────────────────────────────────
 
-_state: dict[str, Any] = {"rag": None, "llm": None, "llm_processor": None}
+_state: dict[str, Any] = {
+    "rag": None,
+    "llm": None,
+    "llm_processor": None,
+    "llm_failed": False,
+    "startup_errors": [],
+}
 _llm_lock = threading.Lock()
 
 
 def _ensure_llm_loaded() -> None:
-    if _state["llm"] is not None:
+    if _state["llm"] is not None or _state["llm_failed"]:
         return
     with _llm_lock:
-        if _state["llm"] is not None:
+        if _state["llm"] is not None or _state["llm_failed"]:
             return
-        for attempt in range(1, 4):
-            try:
-                print(f"Loading {LLM_MODEL}… (attempt {attempt}/3)")
-                import torch
-                from transformers import AutoProcessor, AutoModelForVision2Seq, BitsAndBytesConfig
-                bnb = BitsAndBytesConfig(
-                    load_in_4bit=True,
-                    bnb_4bit_quant_type="nf4",
-                    bnb_4bit_compute_dtype=torch.float16,
-                )
-                model = AutoModelForVision2Seq.from_pretrained(
-                    LLM_MODEL,
-                    quantization_config=bnb if LLM_DEVICE != "cpu" else None,
-                    torch_dtype=torch.float16 if LLM_DEVICE != "cpu" else torch.float32,
-                    device_map="auto" if LLM_DEVICE != "cpu" else None,
-                    attn_implementation="sdpa" if LLM_DEVICE != "cpu" else "eager",
+
+        import torch
+        from transformers import AutoProcessor, AutoModelForVision2Seq, BitsAndBytesConfig
+
+        if LLM_DEVICE != "cpu":
+            load_configs: list[tuple[str, dict]] = [
+                ("GPU 4-bit NF4", dict(
+                    quantization_config=BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_quant_type="nf4",
+                        bnb_4bit_compute_dtype=torch.float16,
+                    ),
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    attn_implementation="sdpa",
                     trust_remote_code=True,
-                )
-                if LLM_DEVICE == "cpu":
-                    model = model.to("cpu")
-                processor = AutoProcessor.from_pretrained(LLM_MODEL, trust_remote_code=True)
-                _state["llm"] = model
-                _state["llm_processor"] = processor
-                print(f"{LLM_MODEL} loaded.")
-                return
-            except Exception as exc:
-                if attempt == 3:
-                    print(f"[error] LLM failed after 3 attempts: {exc}")
+                )),
+                ("GPU 8-bit", dict(
+                    quantization_config=BitsAndBytesConfig(load_in_8bit=True),
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    attn_implementation="sdpa",
+                    trust_remote_code=True,
+                )),
+            ]
+        else:
+            load_configs = [
+                ("CPU float32", dict(
+                    torch_dtype=torch.float32,
+                    attn_implementation="eager",
+                    trust_remote_code=True,
+                )),
+            ]
+
+        for label, kwargs in load_configs:
+            for attempt in range(1, 4):
+                try:
+                    print(f"Loading {LLM_MODEL} ({label}) attempt {attempt}/3…")
+                    model = AutoModelForVision2Seq.from_pretrained(LLM_MODEL, **kwargs)
+                    if "device_map" not in kwargs:
+                        model = model.to("cpu")
+                    processor = AutoProcessor.from_pretrained(LLM_MODEL, trust_remote_code=True)
+                    _state["llm"] = model
+                    _state["llm_processor"] = processor
+                    print(f"{LLM_MODEL} loaded ({label}).")
                     return
-                print(f"[warn] LLM attempt {attempt} failed: {exc}. Retrying in 10s…")
-                time.sleep(10)
+                except Exception as exc:
+                    if attempt == 3:
+                        print(f"[warn] {label} failed after 3 attempts: {exc}")
+                        break
+                    print(f"[warn] {label} attempt {attempt} failed: {exc}. Retrying in 10s…")
+                    time.sleep(10)
+
+        _state["llm_failed"] = True
+        msg = f"LLM '{LLM_MODEL}' failed on all load configs."
+        _state["startup_errors"].append(msg)
+        print(f"[error] {msg}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from ingest import run_ingest
-    run_ingest()
+    try:
+        from ingest import run_ingest
+        run_ingest()
+    except Exception as exc:
+        msg = f"Ingest failed: {exc}"
+        print(f"[error] {msg}")
+        _state["startup_errors"].append(msg)
 
-    from rag import ShikhboRAG
-    _state["rag"] = ShikhboRAG()
-    # LLM and reranker load lazily on first /chat request
+    try:
+        from rag import ShikhboRAG
+        _state["rag"] = ShikhboRAG()
+    except Exception as exc:
+        msg = f"RAG init failed: {exc}"
+        print(f"[error] {msg}")
+        _state["startup_errors"].append(msg)
 
     yield
 
@@ -296,6 +337,11 @@ def chat(req: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=503, detail="RAG not initialised")
 
     _ensure_llm_loaded()
+    if _state["llm"] is None:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM unavailable — check /health for details.",
+        )
 
     try:
         chunks, grounded = rag.retrieve(
@@ -425,9 +471,14 @@ def vision(req: VisionRequest) -> VisionResponse:
 
 @app.get("/health")
 def health() -> dict:
+    errors = _state["startup_errors"]
+    degraded = bool(errors) or _state["llm_failed"] or _state["rag"] is None
     return {
-        "status": "ok",
+        "status": "degraded" if degraded else "ok",
         "rag_loaded": _state["rag"] is not None,
         "llm_loaded": _state["llm"] is not None,
+        "llm_failed": _state["llm_failed"],
         "model": LLM_MODEL,
+        "device": LLM_DEVICE,
+        "errors": errors,
     }
