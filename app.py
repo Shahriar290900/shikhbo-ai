@@ -45,6 +45,7 @@ _state: dict[str, Any] = {
     "llm": None,
     "llm_processor": None,
     "llm_failed": False,
+    "llm_model_loaded": None,
     "startup_errors": [],
 }
 _llm_lock = threading.Lock()
@@ -60,9 +61,15 @@ def _ensure_llm_loaded() -> None:
         import torch
         from transformers import AutoProcessor, AutoModelForVision2Seq, BitsAndBytesConfig
 
-        if LLM_DEVICE != "cpu":
-            load_configs: list[tuple[str, dict]] = [
-                ("GPU 4-bit NF4", dict(
+        cuda_ok = torch.cuda.is_available()
+        print(f"[llm] CUDA available: {cuda_ok} | LLM_DEVICE: {LLM_DEVICE}")
+
+        _FALLBACK_MODEL = "Qwen/Qwen2.5-VL-3B-Instruct"
+
+        if LLM_DEVICE != "cpu" and cuda_ok:
+            # (model_id, label, kwargs)
+            load_configs: list[tuple[str, str, dict]] = [
+                (LLM_MODEL, "GPU 4-bit NF4", dict(
                     quantization_config=BitsAndBytesConfig(
                         load_in_4bit=True,
                         bnb_4bit_quant_type="nf4",
@@ -73,8 +80,32 @@ def _ensure_llm_loaded() -> None:
                     attn_implementation="sdpa",
                     trust_remote_code=True,
                 )),
-                ("GPU 8-bit", dict(
+                (LLM_MODEL, "GPU 8-bit", dict(
                     quantization_config=BitsAndBytesConfig(load_in_8bit=True),
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    attn_implementation="sdpa",
+                    trust_remote_code=True,
+                )),
+                (LLM_MODEL, "GPU float16 no quant", dict(
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    attn_implementation="sdpa",
+                    trust_remote_code=True,
+                )),
+                # Ultimate fallback: 3B model (smaller, fits comfortably on T4)
+                (_FALLBACK_MODEL, "3B GPU 4-bit NF4", dict(
+                    quantization_config=BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_quant_type="nf4",
+                        bnb_4bit_compute_dtype=torch.float16,
+                    ),
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    attn_implementation="sdpa",
+                    trust_remote_code=True,
+                )),
+                (_FALLBACK_MODEL, "3B GPU float16 no quant", dict(
                     torch_dtype=torch.float16,
                     device_map="auto",
                     attn_implementation="sdpa",
@@ -82,35 +113,46 @@ def _ensure_llm_loaded() -> None:
                 )),
             ]
         else:
+            if LLM_DEVICE != "cpu" and not cuda_ok:
+                print("[warn] LLM_DEVICE=cuda but torch.cuda.is_available()=False — falling back to CPU configs")
             load_configs = [
-                ("CPU float32", dict(
+                (LLM_MODEL, "CPU float32", dict(
+                    torch_dtype=torch.float32,
+                    attn_implementation="eager",
+                    trust_remote_code=True,
+                )),
+                (_FALLBACK_MODEL, "3B CPU float32", dict(
                     torch_dtype=torch.float32,
                     attn_implementation="eager",
                     trust_remote_code=True,
                 )),
             ]
 
-        for label, kwargs in load_configs:
-            for attempt in range(1, 4):
+        for model_id, label, kwargs in load_configs:
+            last_exc: str = ""
+            for attempt in range(1, 3):
                 try:
-                    print(f"Loading {LLM_MODEL} ({label}) attempt {attempt}/3…")
-                    model = AutoModelForVision2Seq.from_pretrained(LLM_MODEL, **kwargs)
+                    print(f"Loading {model_id} ({label}) attempt {attempt}/2…")
+                    model = AutoModelForVision2Seq.from_pretrained(model_id, **kwargs)
                     if "device_map" not in kwargs:
                         model = model.to("cpu")
-                    processor = AutoProcessor.from_pretrained(LLM_MODEL, trust_remote_code=True)
+                    processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
                     _state["llm"] = model
                     _state["llm_processor"] = processor
-                    print(f"{LLM_MODEL} loaded ({label}).")
+                    _state["llm_model_loaded"] = f"{model_id} ({label})"
+                    print(f"LLM loaded: {model_id} ({label}).")
                     return
                 except Exception as exc:
-                    if attempt == 3:
-                        print(f"[warn] {label} failed after 3 attempts: {exc}")
+                    last_exc = str(exc)[:400]
+                    if attempt == 2:
+                        print(f"[warn] {model_id} ({label}) failed: {exc}")
+                        _state["startup_errors"].append(f"{label}: {last_exc}")
                         break
-                    print(f"[warn] {label} attempt {attempt} failed: {exc}. Retrying in 10s…")
-                    time.sleep(10)
+                    print(f"[warn] {model_id} ({label}) attempt {attempt} failed: {exc}. Retrying in 5s…")
+                    time.sleep(5)
 
         _state["llm_failed"] = True
-        msg = f"LLM '{LLM_MODEL}' failed on all load configs."
+        msg = f"LLM failed on all configs (primary: {LLM_MODEL}, fallback: {_FALLBACK_MODEL})."
         _state["startup_errors"].append(msg)
         print(f"[error] {msg}")
 
@@ -132,6 +174,11 @@ async def lifespan(app: FastAPI):
         msg = f"RAG init failed: {exc}"
         print(f"[error] {msg}")
         _state["startup_errors"].append(msg)
+
+    # Preload LLM in background so it's ready before first request
+    import threading
+    threading.Thread(target=_ensure_llm_loaded, daemon=True, name="llm-preload").start()
+    print("[startup] LLM preload started in background thread.")
 
     yield
 
@@ -478,7 +525,8 @@ def health() -> dict:
         "rag_loaded": _state["rag"] is not None,
         "llm_loaded": _state["llm"] is not None,
         "llm_failed": _state["llm_failed"],
-        "model": LLM_MODEL,
+        "llm_model_loaded": _state["llm_model_loaded"],
+        "model_target": LLM_MODEL,
         "device": LLM_DEVICE,
         "errors": errors,
     }

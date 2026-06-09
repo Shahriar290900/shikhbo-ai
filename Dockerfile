@@ -12,7 +12,7 @@ WORKDIR /app
 ENV HF_HOME=/app/.cache
 ENV HF_HUB_CACHE=/app/.cache/huggingface
 ENV HF_XET_HIGH_PERFORMANCE=1
-ENV HF_HUB_DOWNLOAD_TIMEOUT=300
+ENV HF_HUB_DOWNLOAD_TIMEOUT=600
 
 # install Python deps
 COPY requirements.txt .
