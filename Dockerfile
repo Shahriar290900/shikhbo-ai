@@ -12,19 +12,12 @@ WORKDIR /app
 ENV HF_HOME=/app/.cache
 ENV HF_HUB_CACHE=/app/.cache/huggingface
 ENV HF_XET_HIGH_PERFORMANCE=1
-ENV HF_HUB_DOWNLOAD_TIMEOUT=120
+ENV HF_HUB_DOWNLOAD_TIMEOUT=300
 
-# install deps first — cached separately from model downloads
+# install Python deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# download models at build time, each in its own layer so Docker can cache
-# them independently — changing app code will NOT re-trigger these layers
-RUN hf download BAAI/bge-m3
-RUN hf download BAAI/bge-reranker-v2-m3
-RUN hf download Qwen/Qwen2.5-VL-7B-Instruct
-
-# copy app code last — model layers above stay cached on every code change
 COPY . .
 
 RUN mkdir -p /app/data /app/.cache && \
