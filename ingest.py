@@ -250,7 +250,7 @@ def run_ingest(force: bool = False) -> None:
 
     # ── 4. load embedding model ──
     print("Loading BAAI/bge-m3…")
-    model = SentenceTransformer("BAAI/bge-m3", device="cpu")
+    model = SentenceTransformer("BAAI/bge-m3", device="cpu", model_kwargs={"use_safetensors": True})
 
     # ── 5. per-corpus FAISS + BM25 ──
     for key, idx_chunk_pairs in by_key.items():

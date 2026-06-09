@@ -97,7 +97,7 @@ class ShikhboRAG:
         _device = "cuda" if os.getenv("LLM_DEVICE", "cpu") != "cpu" else "cpu"
         self._embed_model = _load_with_retry(
             "BAAI/bge-m3",
-            lambda: SentenceTransformer("BAAI/bge-m3", device=_device),
+            lambda: SentenceTransformer("BAAI/bge-m3", device=_device, model_kwargs={"use_safetensors": True}),
         )
         self._reranker_obj: object | None = None
         self._reranker_lock = threading.Lock()
@@ -118,6 +118,7 @@ class ShikhboRAG:
                                 "BAAI/bge-reranker-v2-m3",
                                 device=_device,
                                 default_activation_function=torch.nn.Sigmoid(),
+                                automodel_args={"use_safetensors": True},
                             ),
                         )
                     except Exception as exc:
