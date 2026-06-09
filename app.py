@@ -270,7 +270,10 @@ def _generate(system: str, user: str) -> str:
         out = llm(
             messages,
             max_new_tokens=MAX_NEW_TOKENS,
-            do_sample=False,
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9,
+            repetition_penalty=1.3,
             return_full_text=False,
         )
         # pipeline returns list of dicts; extract generated text
