@@ -1,0 +1,10 @@
+.env
+.env.local
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# runtime-built artifacts (source JSONL/PDF at root are NOT ignored)
+data/
