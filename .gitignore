@@ -1,10 +1,47 @@
+# ── Secrets ───────────────────────────────────────────────────────────────────
 .env
 .env.local
-.DS_Store
+web/.env
+
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
 .venv/
 venv/
+env/
+*.egg-info/
+dist/
+build/
 
-# runtime-built artifacts (source JSONL/PDF at root are NOT ignored)
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+._*
+
+# ── HF Space runtime artifacts (source JSONL/PDF at root are NOT ignored) ────
 data/
+
+# ── Web uploads (transient) ───────────────────────────────────────────────────
+web/uploads/
+
+# ── Electron ──────────────────────────────────────────────────────────────────
+desktop/node_modules/
+desktop/dist/
+desktop/out/
+
+# ── Node ──────────────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/

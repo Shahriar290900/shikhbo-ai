@@ -1,0 +1,57 @@
+/* ── Reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0e1012;
+  --surface: #181b1f;
+  --surface-2: #222529;
+  --surface-3: #2c3036;
+  --border: rgba(255,255,255,0.09);
+  --border-active: rgba(255,255,255,0.45);
+  --text: #f0f0f0;
+  --text-dim: #9a9a9a;
+  --text-muted: #555;
+  --accent-dim: rgba(255,255,255,0.06);
+  --green: #3dd68c;
+  --red: #ff5f6d;
+  --radius: 8px;
+  --font: 'Inter', 'Noto Sans Bengali', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ── Background ──────────────────────────────────────────────────────────────*/
+.bg-grid {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.glow {
+  position: fixed; z-index: 0; border-radius: 50%;
+  filter: blur(110px); pointer-events: none; opacity: 0.12;
+}
+.glow-1 {
+  width: 700px; height: 700px;
+  background: radial-gradient(circle, #3b4a6b, transparent 70%);
+  top: -200px; left: -150px;
+}
+.glow-2 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, #2d4060, transparent 70%);
+  bottom: -100px; right: -100px;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────────*/
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 10px; }

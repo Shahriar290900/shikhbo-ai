@@ -1,0 +1,34 @@
+{
+  "name": "shikhbo-desktop",
+  "version": "1.0.0",
+  "description": "Shikhbo — AI Study Partner (Desktop)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.shikhbo.desktop",
+    "productName": "Shikhbo",
+    "copyright": "Copyright © 2025 Shikhbo",
+    "icon": "assets/icon",
+    "mac": {
+      "category": "public.app-category.education",
+      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }]
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "linux": {
+      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "category": "Education"
+    },
+    "publish": { "provider": "github", "owner": "Shahriar290900", "repo": "shikhbo-ai" }
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}

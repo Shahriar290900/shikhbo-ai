@@ -1,0 +1,19 @@
+{
+  "appId": "com.shikhbo.app",
+  "appName": "Shikhbo",
+  "webDir": "www",
+  "server": {
+    "url": "https://shikhbo.up.railway.app",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0e1012"
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0e1012"
+    }
+  }
+}

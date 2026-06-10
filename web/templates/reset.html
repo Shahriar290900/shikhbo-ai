@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Reset Password — Shikhbo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <style>
+    .center { min-height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; z-index: 1; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 14px; }
+    .card h2 { font-size: 20px; }
+    .field-label { font-size: 13px; color: var(--text-dim); margin-bottom: 5px; }
+    .field-input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--text); outline: none; transition: border-color 0.2s; font-family: inherit; }
+    .field-input:focus { border-color: var(--border-active); }
+    .btn-primary { width: 100%; padding: 12px; background: var(--text); color: var(--bg); border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .msg-box { font-size: 13px; padding: 10px 14px; border-radius: 8px; display: none; }
+    .msg-box.error { background: rgba(255,95,109,0.1); color: #ff5f6d; border: 1px solid rgba(255,95,109,0.3); }
+    .msg-box.success { background: rgba(61,214,140,0.1); color: #3dd68c; border: 1px solid rgba(61,214,140,0.3); }
+    a { color: var(--text-dim); font-size: 13px; text-align: center; }
+  </style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="glow glow-1"></div>
+<div class="center">
+  <div class="card">
+    <h2>⬡ Reset Password</h2>
+    <div id="step1">
+      <p style="font-size:13px;color:var(--text-dim);">Enter your email and we'll send a 6-digit code.</p>
+      <div style="margin-top:12px;">
+        <div class="field-label">Email</div>
+        <input class="field-input" type="email" id="emailInput" placeholder="you@school.edu"/>
+      </div>
+      <div class="msg-box" id="msg1"></div>
+      <button class="btn-primary" style="margin-top:12px;" onclick="sendCode()">Send Code</button>
+    </div>
+    <div id="step2" style="display:none;flex-direction:column;gap:14px;">
+      <div>
+        <div class="field-label">6-Digit Code</div>
+        <input class="field-input" type="text" id="codeInput" placeholder="000000" maxlength="6" inputmode="numeric" style="letter-spacing:6px;font-size:22px;text-align:center;"/>
+      </div>
+      <div>
+        <div class="field-label">New Password</div>
+        <input class="field-input" type="password" id="pwInput" placeholder="Min. 6 characters"/>
+      </div>
+      <div class="msg-box" id="msg2"></div>
+      <button class="btn-primary" onclick="resetPw()">Reset Password</button>
+    </div>
+    <a href="/">← Back to login</a>
+  </div>
+</div>
+<script>
+let emailValue = "";
+function showMsg(id,msg,type) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = `msg-box ${type}`;
+  el.style.display = "block";
+}
+async function sendCode() {
+  emailValue = document.getElementById("emailInput").value.trim();
+  if (!emailValue) return;
+  const res = await fetch("/api/forgot-password", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:emailValue}) });
+  const d = await res.json();
+  if (res.ok) {
+    document.getElementById("step1").style.display = "none";
+    const s2 = document.getElementById("step2");
+    s2.style.display = "flex";
+  } else showMsg("msg1", d.error, "error");
+}
+async function resetPw() {
+  const code = document.getElementById("codeInput").value.trim();
+  const pw = document.getElementById("pwInput").value.trim();
+  if (!code || !pw) return;
+  const res = await fetch("/api/verify-otp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:emailValue,code,new_password:pw}) });
+  const d = await res.json();
+  if (res.ok) { showMsg("msg2","Password reset! Redirecting…","success"); setTimeout(()=>window.location.href="/",1800); }
+  else showMsg("msg2", d.error, "error");
+}
+</script>
+</body>
+</html>
