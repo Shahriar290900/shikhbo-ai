@@ -9,7 +9,6 @@ Run locally:
 Env vars: see .env.example
 """
 
-import base64
 import json
 import os
 from functools import wraps
@@ -32,6 +31,7 @@ from scripts.db import (
 from scripts.auth.otp_email import send_otp
 from scripts.auth.google_oauth import register_oauth
 from scripts import hf_client
+from scripts.ocr_client import is_image, ocr_image
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "shikhbo_dev_secret_2024")
@@ -275,29 +275,30 @@ def query():
     except Exception:
         pass
 
-    # If image uploaded, use vision endpoint
-    if file_path:
-        def vision_generate():
-            yield json.dumps({"status": "thinking"}) + "\n"
-            yield json.dumps({"status": "analyzing image"}) + "\n"
+    # Image uploaded → OCR → feed extracted text into the regular chat stream
+    if file_path and is_image(file_path):
+        def image_generate():
             try:
-                with open(file_path, "rb") as f:
-                    img_b64 = base64.b64encode(f.read()).decode()
-                result = hf_client.vision_query(img_b64, query_text, subject, curriculum, class_)
-                if "error" in result:
-                    yield json.dumps({"chunk": f"[Vision error: {result['error']}]"}) + "\n"
+                yield json.dumps({"status": "reading_image"}) + "\n"
+                extracted = ocr_image(file_path)
+
+                if extracted:
+                    effective_query = f"[Extracted from image]\n{extracted}\n\n{query_text}"
                 else:
-                    answer = result.get("answer", "")
-                    try:
-                        save_message(session_id, "assistant", answer, result.get("sources"))
-                    except Exception:
-                        pass
-                    yield json.dumps({"chunk": answer}) + "\n"
-                    if result.get("sources"):
-                        yield json.dumps({"sources": [
-                            f"{s.get('chapter','')} p.{s.get('page','')}"
-                            for s in result["sources"]
-                        ]}) + "\n"
+                    # OCR unavailable (Space sleeping) — ask Gemini to read the image directly
+                    yield json.dumps({"status": "OCR unavailable — asking AI directly"}) + "\n"
+                    effective_query = query_text
+
+                assistant_reply = []
+                for payload in hf_client.chat_stream(effective_query, curriculum, class_, subject, mode):
+                    if "chunk" in payload:
+                        assistant_reply.append(payload["chunk"])
+                    yield json.dumps(payload) + "\n"
+
+                try:
+                    save_message(session_id, "assistant", "".join(assistant_reply))
+                except Exception:
+                    pass
             finally:
                 if file_path and os.path.isfile(file_path):
                     try:
@@ -305,7 +306,7 @@ def query():
                     except OSError:
                         pass
 
-        return Response(stream_with_context(vision_generate()), mimetype="application/x-ndjson")
+        return Response(stream_with_context(image_generate()), mimetype="application/x-ndjson")
 
     # Text query → stream from HF Space
     assistant_reply = []

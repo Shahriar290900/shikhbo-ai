@@ -1,20 +1,9 @@
---extra-index-url https://download.pytorch.org/whl/cu118
-
-fastapi==0.115.0
-uvicorn[standard]==0.32.0
-pydantic==2.9.2
-
-sentence-transformers>=3.0.0,<5.0.0
-faiss-cpu==1.8.0
-rank-bm25==0.2.2
-
-PyMuPDF==1.24.13
-Pillow>=10.0.0
-
-transformers>=4.52.0,<5.0.0
-qwen-vl-utils>=0.0.8
-torch==2.6.0+cu118
-accelerate>=1.0.0
-bitsandbytes>=0.43.0
-numpy==1.26.4
-huggingface_hub>=0.25.0
+# torch comes from the base image (pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime)
+# DO NOT add torch here — it would reinstall a CPU-only build and break CUDA.
+fastapi
+uvicorn[standard]
+transformers>=4.51.0
+accelerate
+qwen-vl-utils
+Pillow
+python-multipart
