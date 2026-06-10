@@ -1,26 +1,49 @@
-"""Client for the Shikhbo HuggingFace Space AI backend."""
+"""
+HF Space client with automatic Gemini fallback.
 
-import os
+Primary:  HF Space /chat → Qwen2.5-VL-7B with FAISS RAG (textbook-grounded)
+Fallback: Gemini gemma-4-31b-it (general knowledge, labeled clearly)
+
+Primary:  HF Space /vision → Qwen2.5-VL OCR (best for Bengali + diagrams)
+Fallback: Gemini File API vision
+"""
+
 import json
+import os
 import requests
 from typing import Generator
 
 HF_SPACE_URL = os.getenv("HF_SPACE_URL", "").rstrip("/")
 HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
+COLD_START_TIMEOUT = 90  # seconds — T4 can take ~60s to wake
 
-_HEADERS = lambda: {"Authorization": f"Bearer {HF_API_TOKEN}", "Content-Type": "application/json"}
 
-COLD_START_TIMEOUT = 120  # HF Spaces can take up to 2 min to wake up
+def _headers() -> dict:
+    return {"Authorization": f"Bearer {HF_API_TOKEN}", "Content-Type": "application/json"}
 
+
+# ── health ────────────────────────────────────────────────────────────────────
 
 def health() -> dict:
-    """Check if the HF Space is up."""
+    if not HF_SPACE_URL:
+        return {"status": "not_configured"}
     try:
         r = requests.get(f"{HF_SPACE_URL}/health", timeout=10)
+        r.raise_for_status()
         return r.json()
+    except requests.exceptions.Timeout:
+        return {"status": "sleeping"}
     except Exception as e:
         return {"status": "unreachable", "error": str(e)}
 
+
+def _hf_available() -> bool:
+    """Quick liveness check — does NOT wake the space."""
+    h = health()
+    return h.get("status") in ("ok", "degraded")
+
+
+# ── chat ──────────────────────────────────────────────────────────────────────
 
 def chat_stream(
     query: str,
@@ -28,15 +51,31 @@ def chat_stream(
     class_: str,
     subject: str,
     mode: str = "normal",
+    history: list[dict] | None = None,
 ) -> Generator[dict, None, None]:
     """
-    Yields status dicts then chunk dicts from the HF Space /chat endpoint.
-    Falls back to an error message if the space is unavailable.
+    Try HF Space first (RAG + Qwen). On any failure, fall back to Gemini.
+    Yields {status:...}, {chunk:...}, {sources:[...]} dicts.
     """
-    if not HF_SPACE_URL or not HF_API_TOKEN:
-        yield {"chunk": "[HF Space not configured — set HF_SPACE_URL and HF_API_TOKEN]"}
+    if HF_SPACE_URL and HF_API_TOKEN:
+        yield from _hf_chat_stream(query, curriculum, class_, subject, mode)
         return
 
+    # No HF Space configured — go straight to Gemini
+    from scripts.gemini_client import chat_stream as gemini_stream
+    yield from gemini_stream(query, curriculum, class_, subject, mode, history)
+
+
+def _hf_chat_stream(
+    query: str,
+    curriculum: str,
+    class_: str,
+    subject: str,
+    mode: str,
+) -> Generator[dict, None, None]:
+    """
+    Calls HF Space /chat. On any error, falls back to Gemini automatically.
+    """
     payload = {
         "query": query,
         "curriculum": curriculum,
@@ -47,39 +86,67 @@ def chat_stream(
 
     yield {"status": "thinking"}
 
+    hf_failed = False
+    error_detail = ""
+
     try:
         resp = requests.post(
             f"{HF_SPACE_URL}/chat",
-            headers=_HEADERS(),
+            headers=_headers(),
             json=payload,
             timeout=COLD_START_TIMEOUT,
         )
+
         if resp.status_code == 503:
-            yield {"chunk": "⏳ The AI model is warming up — this can take up to 60 seconds on first use. Please try again in a moment."}
-            return
-        resp.raise_for_status()
-        data = resp.json()
-        answer = data.get("answer", "")
-        sources = data.get("sources", [])
+            hf_failed = True
+            error_detail = "sleeping"
+        elif resp.status_code == 403:
+            hf_failed = True
+            error_detail = "auth"
+        else:
+            resp.raise_for_status()
+            data = resp.json()
+            answer = data.get("answer", "")
+            sources = data.get("sources", [])
 
-        yield {"status": "synthesizing"}
-        # Simulate streaming by yielding words gradually
-        words = answer.split(" ")
-        buffer = ""
-        for i, word in enumerate(words):
-            buffer += word + (" " if i < len(words) - 1 else "")
-            if len(buffer) >= 30 or i == len(words) - 1:
-                yield {"chunk": buffer}
-                buffer = ""
+            if not answer:
+                hf_failed = True
+                error_detail = "empty response"
+            else:
+                yield {"status": "synthesizing"}
+                # Chunk the response for a smooth streaming feel
+                words = answer.split(" ")
+                buf = ""
+                for i, w in enumerate(words):
+                    buf += w + (" " if i < len(words) - 1 else "")
+                    if len(buf) >= 40 or i == len(words) - 1:
+                        yield {"chunk": buf}
+                        buf = ""
 
-        if sources:
-            yield {"sources": [f"{s.get('chapter', '')} p.{s.get('page', '')}" for s in sources]}
+                if sources:
+                    yield {"sources": [
+                        f"{s.get('chapter', '')} p.{s.get('page', '')}"
+                        for s in sources
+                    ]}
+                return
 
     except requests.exceptions.Timeout:
-        yield {"chunk": "⏳ The AI is taking longer than expected. The model may be loading — please try again."}
+        hf_failed = True
+        error_detail = "timeout (model loading)"
     except Exception as e:
-        yield {"chunk": f"[Connection error: {e}]"}
+        hf_failed = True
+        error_detail = str(e)[:80]
 
+    if hf_failed:
+        yield {"status": f"HF model {error_detail} — using Gemini fallback"}
+        from scripts.gemini_client import chat_stream as gemini_stream
+        # Skip the first {status} yield from gemini since we already sent one
+        for payload in gemini_stream(query, curriculum, class_, subject, mode):
+            if "status" not in payload:
+                yield payload
+
+
+# ── vision / OCR ──────────────────────────────────────────────────────────────
 
 def vision_query(
     image_base64: str,
@@ -88,9 +155,14 @@ def vision_query(
     curriculum: str,
     class_: str,
 ) -> dict:
-    """Call the HF Space /vision endpoint (synchronous)."""
+    """
+    Try HF Space /vision (Qwen OCR). On failure, fall back to Gemini vision.
+    Returns {"extracted_text": ..., "answer": ..., "sources": [...], "grounded": bool}
+    """
     if not HF_SPACE_URL or not HF_API_TOKEN:
-        return {"error": "HF Space not configured"}
+        # No HF Space — go directly to Gemini
+        from scripts.gemini_client import vision_ocr
+        return vision_ocr(image_base64, query, subject, curriculum, class_)
 
     payload = {
         "image_base64": image_base64,
@@ -103,13 +175,19 @@ def vision_query(
     try:
         resp = requests.post(
             f"{HF_SPACE_URL}/vision",
-            headers=_HEADERS(),
+            headers=_headers(),
             json=payload,
             timeout=COLD_START_TIMEOUT,
         )
-        if resp.status_code == 503:
-            return {"error": "Vision endpoint not available (GPU required)"}
+        if resp.status_code in (503, 503):
+            raise RuntimeError("HF vision endpoint unavailable")
         resp.raise_for_status()
         return resp.json()
+
     except Exception as e:
-        return {"error": str(e)}
+        # Gemini fallback for OCR
+        from scripts.gemini_client import vision_ocr
+        result = vision_ocr(image_base64, query, subject, curriculum, class_)
+        if "error" not in result:
+            result["_fallback"] = "gemini"
+        return result
