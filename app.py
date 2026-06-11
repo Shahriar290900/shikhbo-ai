@@ -5,7 +5,8 @@ Endpoints:
     GET  /health  → readiness + CUDA status
     POST /ocr     → multipart: file (image) [+ instruction]; returns {"text": "..."}
 
-Hardware: Nvidia T4 small (16 GB VRAM). Model: Qwen3-VL-4B-Instruct in bf16 (~10 GB).
+Hardware: Nvidia 1xL4 (24 GB VRAM). Model: Qwen2.5-VL-7B-Instruct in bf16 (~16 GB).
+Set Space variable LLM_MODEL to override the model.
 
 Security: set OCR_API_KEY secret in Space → Settings → Secrets.
 All callers must send header:  x-api-key: <OCR_API_KEY>
@@ -21,10 +22,14 @@ from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from PIL import Image
 from transformers import AutoModelForImageTextToText, AutoProcessor
 
-# Qwen3-VL-4B fits a T4 (16 GB) in bf16 (~10 GB VRAM).
-# Switch to Qwen/Qwen3-VL-8B-Instruct only if Bengali dense-text accuracy is short
-# (requires a bigger GPU — at least 1xL4 24 GB).
-MODEL_ID = os.getenv("MODEL_ID", "Qwen/Qwen3-VL-4B-Instruct")
+# Read LLM_MODEL (set in HF Space variables) with fallbacks.
+# Default: Qwen2.5-VL-7B-Instruct — fits Nvidia 1xL4 (24 GB VRAM) in bf16.
+# For T4 (16 GB), use Qwen/Qwen2.5-VL-3B-Instruct or Qwen/Qwen3-VL-4B-Instruct.
+MODEL_ID = (
+    os.getenv("LLM_MODEL")          # set in HF Space → Settings → Variables
+    or os.getenv("MODEL_ID")        # legacy fallback
+    or "Qwen/Qwen2.5-VL-7B-Instruct"
+)
 
 # Shared secret. If set, callers must send: x-api-key: <value>
 API_KEY = os.getenv("OCR_API_KEY")

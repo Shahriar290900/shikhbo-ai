@@ -1,482 +1,555 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Shikhbo — AI Study Partner</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/main.css">
-  <style>
-    /* ── Landing-specific ── */
-    .landing-root {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      z-index: 1;
-      padding: 24px 16px;
-    }
-    .landing-card {
-      width: 100%;
-      max-width: 880px;
-      display: grid;
-      grid-template-columns: 1fr 400px;
-      gap: 48px;
-      align-items: center;
-    }
-    @media (max-width: 780px) {
-      .landing-card { grid-template-columns: 1fr; gap: 32px; }
-      .hero-side { text-align: center; }
-    }
-    /* hero */
-    .hero-label {
-      display: inline-block;
-      font-size: 12px;
-      font-weight: 500;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      border: 1px solid var(--border);
-      padding: 4px 12px;
-      border-radius: 20px;
-      margin-bottom: 20px;
-    }
-    .hero-title {
-      font-size: clamp(32px, 5vw, 48px);
-      font-weight: 700;
-      line-height: 1.15;
-      margin-bottom: 16px;
-      letter-spacing: -0.5px;
-    }
-    .hero-title em { font-style: normal; color: var(--text-muted); }
-    .hero-sub { font-size: 16px; color: var(--text-dim); line-height: 1.7; max-width: 380px; }
-    /* auth card */
-    .auth-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 32px;
-    }
-    .tab-bar {
-      display: flex;
-      background: var(--bg);
-      border-radius: 8px;
-      padding: 3px;
-      margin-bottom: 24px;
-      gap: 3px;
-    }
-    .tab-btn {
-      flex: 1;
-      padding: 8px;
-      font-size: 14px;
-      font-weight: 500;
-      border-radius: 6px;
-      border: none;
-      background: transparent;
-      color: var(--text-dim);
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .tab-btn.active {
-      background: var(--surface-2);
-      color: var(--text);
-    }
-    /* forms */
-    .auth-form { display: none; }
-    .auth-form.active { display: flex; flex-direction: column; gap: 14px; }
-    .field-label { font-size: 13px; color: var(--text-dim); margin-bottom: 5px; }
-    .field-input {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 14px;
-      color: var(--text);
-      outline: none;
-      transition: border-color 0.2s;
-      font-family: inherit;
-    }
-    .field-input:focus { border-color: var(--border-active); }
-    .field-input::placeholder { color: var(--text-muted); }
-    select.field-input { appearance: none; cursor: pointer; }
-    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    /* submit btn */
-    .btn-primary {
-      width: 100%;
-      padding: 12px;
-      background: var(--text);
-      color: var(--bg);
-      border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s;
-      font-family: inherit;
-    }
-    .btn-primary:hover { opacity: 0.88; }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    /* google btn */
-    .btn-google {
-      width: 100%;
-      padding: 11px;
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 14px;
-      color: var(--text);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: border-color 0.2s, background 0.2s;
-      font-family: inherit;
-    }
-    .btn-google:hover { border-color: var(--border-active); background: var(--accent-dim); }
-    .divider { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 12px; }
-    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-    /* forgot pw */
-    .forgot-link {
-      font-size: 12px;
-      color: var(--text-muted);
-      text-align: right;
-      cursor: pointer;
-      text-decoration: underline;
-      background: none;
-      border: none;
-      font-family: inherit;
-      margin-top: -6px;
-    }
-    .forgot-link:hover { color: var(--text-dim); }
-    /* error/success */
-    .msg-box {
-      font-size: 13px;
-      padding: 10px 14px;
-      border-radius: 8px;
-      display: none;
-    }
-    .msg-box.error { background: rgba(255,95,109,0.1); color: #ff5f6d; border: 1px solid rgba(255,95,109,0.3); }
-    .msg-box.success { background: rgba(61,214,140,0.1); color: #3dd68c; border: 1px solid rgba(61,214,140,0.3); }
-    /* forgot pw modal */
-    .modal-overlay {
-      position: fixed; inset: 0; z-index: 999;
-      background: rgba(0,0,0,0.6);
-      backdrop-filter: blur(4px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-    }
-    .modal-overlay.open { display: flex; }
-    .modal-box {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 32px;
-      width: 100%;
-      max-width: 400px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .modal-title { font-size: 18px; font-weight: 600; }
-    .modal-sub { font-size: 13px; color: var(--text-dim); margin-top: -6px; }
-    .modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; }
-    /* lang toggle */
-    .site-header {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 32px;
-    }
-    .logo-mark { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-    .logo-hex { color: var(--text); }
-    .lang-toggle {
-      font-size: 13px; padding: 6px 14px;
-      border: 1px solid var(--border); border-radius: 20px;
-      background: transparent; color: var(--text-dim);
-      cursor: pointer; transition: all 0.2s; font-family: inherit;
-    }
-    .lang-toggle:hover { border-color: var(--border-active); color: var(--text); }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>শিখবো — AI Learning Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/main.css">
+<style>
+body { overflow-y: auto; min-height: 100vh; }
+
+.page-wrap {
+  position: relative; z-index: 1;
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 80px 16px 40px;
+}
+
+.topbar {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 56px; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  background: transparent;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+.topbar.scrolled {
+  background: var(--glass-bg);
+  border-bottom: 1px solid var(--glass-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 20px; font-weight: 700; color: var(--text);
+  letter-spacing: -0.03em;
+}
+.brand-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 12px var(--accent-2);
+  animation: pulse-dot 2.5s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%,100%{opacity:1;transform:scale(1);}
+  50%{opacity:0.5;transform:scale(0.7);}
+}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.lang-pill{
+  display:flex;align-items:center;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:20px;padding:3px;gap:2px;
+}
+.lang-pill button{
+  padding:4px 12px;border-radius:16px;border:none;
+  background:transparent;color:var(--text-dim);
+  font-size:12px;font-weight:500;cursor:pointer;
+  transition:var(--transition);font-family:var(--font);
+}
+.lang-pill button.active{background:var(--accent);color:#fff;}
+
+.hero{
+  text-align:center;max-width:640px;width:100%;
+  margin-bottom:32px;
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:20px;padding:6px 14px;
+  font-size:12px;color:var(--text-dim);
+  margin-bottom:24px;opacity:0;transform:translateY(20px);
+}
+.hero-title{
+  font-size:clamp(2.2rem,5.5vw,3.8rem);
+  font-weight:700;letter-spacing:-0.04em;
+  line-height:1.1;margin-bottom:16px;
+  color:var(--text);opacity:0;transform:translateY(24px);
+}
+.hero-title .accent{color:var(--accent);}
+.hero-title .accent-2{color:var(--accent-2);}
+.hero-sub{
+  font-size:15px;color:var(--text-dim);
+  max-width:480px;margin:0 auto 32px;
+  opacity:0;transform:translateY(20px);
+}
+
+.auth-card{
+  width:100%;max-width:440px;
+  background:var(--glass-bg);
+  border:1px solid var(--glass-border);
+  border-radius:var(--radius-lg);
+  backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
+  padding:28px;box-shadow:var(--shadow);
+  opacity:0;transform:translateY(28px) scale(0.97);
+}
+
+.tab-bar{
+  display:flex;gap:2px;
+  background:var(--surface-3);border-radius:var(--radius);
+  padding:3px;margin-bottom:22px;
+}
+.tab-btn{
+  flex:1;padding:8px 12px;
+  border:none;background:transparent;
+  border-radius:calc(var(--radius) - 2px);
+  color:var(--text-dim);font-family:var(--font);
+  font-size:13px;font-weight:500;cursor:pointer;
+  transition:var(--transition);
+}
+.tab-btn.active{
+  background:var(--surface);color:var(--text);
+  box-shadow:var(--shadow-sm);
+}
+
+.auth-form{display:flex;flex-direction:column;gap:15px;}
+.auth-form.hidden{display:none;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+.auth-footer{text-align:center;margin-top:12px;}
+.auth-footer p{font-size:13px;color:var(--text-dim);}
+.auth-footer a{color:var(--accent);cursor:pointer;}
+
+.features{
+  display:flex;flex-wrap:wrap;justify-content:center;
+  gap:8px;margin-top:32px;max-width:640px;
+  opacity:0;transform:translateY(16px);
+}
+.feature-chip{
+  display:flex;align-items:center;gap:6px;
+  padding:5px 13px;border-radius:20px;
+  font-size:12px;color:var(--text-dim);
+  background:var(--surface-2);border:1px solid var(--border);
+  transition:var(--transition);
+}
+.feature-chip:hover{
+  border-color:var(--border-hover);color:var(--text);
+  transform:translateY(-2px);
+}
+
+.otp-grid{display:flex;gap:8px;justify-content:center;}
+.otp-grid input{
+  width:46px;height:52px;
+  text-align:center;font-size:22px;font-weight:600;
+  border-radius:var(--radius);padding:0;
+}
+</style>
 </head>
 <body>
-<div class="bg-grid"></div>
-<div class="glow glow-1"></div>
-<div class="glow glow-2"></div>
 
-<header class="site-header">
-  <div class="logo-mark">
-    <span class="logo-hex">⬡</span>
-    <span id="logoText">শিখবো — Shikhbo</span>
+<canvas id="bg-canvas"></canvas>
+<div class="bg-orb bg-orb-1"></div>
+<div class="bg-orb bg-orb-2"></div>
+<div class="bg-orb bg-orb-3"></div>
+
+<header class="topbar" id="topbar">
+  <div class="brand"><div class="brand-dot"></div>শিখবো</div>
+  <div class="topbar-right">
+    <div class="lang-pill">
+      <button class="active" onclick="setLang('en')" id="btnEn">EN</button>
+      <button onclick="setLang('bn')" id="btnBn">বাং</button>
+    </div>
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
   </div>
-  <button class="lang-toggle" onclick="toggleLang()" id="langBtn">English</button>
 </header>
 
-<div class="landing-root">
-  <div class="landing-card">
-    <!-- Hero -->
-    <div class="hero-side">
-      <div class="hero-label" id="heroLabel">তোমার AI স্টাডি পার্টনার</div>
-      <h1 class="hero-title" id="heroTitle">
-        শিখবো এখন<br><em>আরও সহজ।</em>
-      </h1>
-      <p class="hero-sub" id="heroSub">কঠিন টপিক এখন হাতের মুঠোয়। পাঠ্যবই থেকে সরাসরি উত্তর — ধাপে ধাপে, তোমার ভাষায়।</p>
+<main class="page-wrap">
+  <div class="hero">
+    <div class="hero-badge" id="heroBadge">
+      <span>✦</span><span id="badgeText">AI-Powered · Curriculum-Aligned · Free</span>
+    </div>
+    <h1 class="hero-title" id="heroTitle">
+      <span id="titleLine1">Learn smarter with</span><br>
+      <span class="accent-2" id="titleAccent">শিখবো AI</span>
+    </h1>
+    <p class="hero-sub" id="heroSub">
+      <span id="subText">Your personal AI tutor for NCTB and Edexcel A-Level — grounded in your actual textbooks.</span>
+    </p>
+  </div>
+
+  <div class="auth-card" id="authCard">
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tabLogin" onclick="switchTab('login')"><span id="tabLoginLabel">Log In</span></button>
+      <button class="tab-btn" id="tabRegister" onclick="switchTab('register')"><span id="tabRegisterLabel">Create Account</span></button>
     </div>
 
-    <!-- Auth Card -->
-    <div class="auth-card">
-      <!-- Tab bar -->
-      <div class="tab-bar">
-        <button class="tab-btn active" id="tabLogin" onclick="switchTab('login')" data-en="Log In" data-bn="লগ ইন">লগ ইন</button>
-        <button class="tab-btn" id="tabSignup" onclick="switchTab('signup')" data-en="Sign Up" data-bn="রেজিস্টার">রেজিস্টার</button>
-      </div>
+    <button class="btn btn-google" onclick="googleLogin()" style="width:100%;margin-bottom:16px;">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+      <span id="googleBtnText">Continue with Google</span>
+    </button>
+    <div class="divider" style="margin-bottom:16px;"><span id="orText">or</span></div>
 
-      <!-- Google -->
-      <button class="btn-google" onclick="googleLogin()">
-        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        <span data-en="Continue with Google" data-bn="Google দিয়ে লগ ইন">Google দিয়ে লগ ইন</span>
+    <form class="auth-form" id="loginForm" onsubmit="submitLogin(event)">
+      <div class="form-error" id="loginError"></div>
+      <div class="input-group">
+        <label id="loginEmailLabel">Email address</label>
+        <input type="email" id="loginEmail" placeholder="you@example.com" required autocomplete="email">
+      </div>
+      <div class="input-group">
+        <label id="loginPasswordLabel">Password</label>
+        <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" id="loginBtn">
+        <span id="loginBtnText">Log In</span>
       </button>
-      <div class="divider" data-en="or" data-bn="অথবা">অথবা</div>
+      <div class="auth-footer"><p><a onclick="openForgotPassword()" id="forgotLink">Forgot password?</a></p></div>
+    </form>
 
-      <!-- Login Form -->
-      <form class="auth-form active" id="formLogin" onsubmit="handleLogin(event)">
-        <div>
-          <div class="field-label" data-en="Email" data-bn="ইমেইল">ইমেইল</div>
-          <input class="field-input" type="email" id="loginEmail" placeholder="you@school.edu" required autocomplete="email"/>
+    <form class="auth-form hidden" id="registerForm" onsubmit="submitRegister(event)">
+      <div class="form-error" id="registerError"></div>
+      <div class="form-row">
+        <div class="input-group">
+          <label id="nameLabel">Full name</label>
+          <input type="text" id="regName" placeholder="Your name" required>
         </div>
-        <div>
-          <div class="field-label" data-en="Password" data-bn="পাসওয়ার্ড">পাসওয়ার্ড</div>
-          <input class="field-input" type="password" id="loginPw" placeholder="••••••••" required autocomplete="current-password"/>
-          <button type="button" class="forgot-link" onclick="openForgot()" data-en="Forgot password?" data-bn="পাসওয়ার্ড ভুলে গেছেন?">পাসওয়ার্ড ভুলে গেছেন?</button>
+        <div class="input-group">
+          <label id="classLabel">Class / Level</label>
+          <select id="regClass">
+            <option value="SSC">SSC (NCTB)</option>
+            <option value="A-Level">A-Level (Edexcel)</option>
+            <option value="HSC">HSC</option>
+          </select>
         </div>
-        <div class="msg-box" id="loginMsg"></div>
-        <button class="btn-primary" type="submit" id="loginBtn" data-en="Log In" data-bn="লগ ইন">লগ ইন</button>
-      </form>
+      </div>
+      <div class="input-group">
+        <label id="curriculumLabel">Curriculum</label>
+        <select id="regCurriculum">
+          <option value="NCTB">NCTB (Bengali medium)</option>
+          <option value="Edexcel_IAL">Edexcel IAL (English)</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label id="regEmailLabel">Email address</label>
+        <input type="email" id="regEmail" placeholder="you@example.com" required autocomplete="email">
+      </div>
+      <div class="input-group">
+        <label id="regPasswordLabel">Password</label>
+        <input type="password" id="regPassword" placeholder="Min. 8 characters" required minlength="8" autocomplete="new-password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" id="registerBtn">
+        <span id="registerBtnText">Create Account</span>
+      </button>
+    </form>
+  </div>
 
-      <!-- Signup Form -->
-      <form class="auth-form" id="formSignup" onsubmit="handleSignup(event)">
-        <div>
-          <div class="field-label" data-en="Full Name" data-bn="পূর্ণ নাম">পূর্ণ নাম</div>
-          <input class="field-input" type="text" id="signupName" placeholder="Your name" required/>
-        </div>
-        <div>
-          <div class="field-label" data-en="Email" data-bn="ইমেইল">ইমেইল</div>
-          <input class="field-input" type="email" id="signupEmail" placeholder="you@school.edu" required autocomplete="email"/>
-        </div>
-        <div>
-          <div class="field-label" data-en="Password" data-bn="পাসওয়ার্ড">পাসওয়ার্ড</div>
-          <input class="field-input" type="password" id="signupPw" placeholder="Min. 6 characters" required autocomplete="new-password"/>
-        </div>
-        <div class="field-row">
-          <div>
-            <div class="field-label" data-en="Class" data-bn="শ্রেণী">শ্রেণী</div>
-            <select class="field-input" id="signupClass">
-              <option value="SSC">SSC / Class 9-10</option>
-              <option value="HSC">HSC / Class 11-12</option>
-              <option value="A-level">A-Level</option>
-              <option value="O-level">O-Level</option>
-            </select>
-          </div>
-          <div>
-            <div class="field-label" data-en="Curriculum" data-bn="কারিকুলাম">কারিকুলাম</div>
-            <select class="field-input" id="signupCurriculum">
-              <option value="NCTB">NCTB (বাংলাদেশ)</option>
-              <option value="Edexcel_IAL">Edexcel IAL</option>
-              <option value="Cambridge">Cambridge</option>
-            </select>
-          </div>
-        </div>
-        <div class="msg-box" id="signupMsg"></div>
-        <button class="btn-primary" type="submit" id="signupBtn" data-en="Create Account" data-bn="একাউন্ট তৈরি করুন">একাউন্ট তৈরি করুন</button>
-      </form>
+  <div class="features" id="features">
+    <div class="feature-chip"><span>🔬</span><span id="f1">RAG-grounded answers</span></div>
+    <div class="feature-chip"><span>📖</span><span id="f2">NCTB + Edexcel textbooks</span></div>
+    <div class="feature-chip"><span>🖼️</span><span id="f3">Image OCR (Qwen VL)</span></div>
+    <div class="feature-chip"><span>⚡</span><span id="f4">Streaming responses</span></div>
+    <div class="feature-chip"><span>🔒</span><span id="f5">Privacy-first</span></div>
+    <div class="feature-chip"><span>🎨</span><span id="f6">Dark + Light mode</span></div>
+  </div>
+</main>
+
+<!-- Forgot password modal -->
+<div class="modal-overlay" id="fpOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 style="font-size:16px;" id="fpTitle">Reset Password</h3>
+      <button class="modal-close" onclick="closeForgotPassword()">✕</button>
+    </div>
+    <div id="fpStep1" style="display:flex;flex-direction:column;gap:14px;">
+      <div class="form-error" id="fpError1"></div>
+      <div class="input-group">
+        <label id="fpEmailLabel">Your email address</label>
+        <input type="email" id="fpEmail" placeholder="you@example.com">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="sendOtp()" id="fpSendBtn">
+        <span id="fpSendText">Send OTP</span>
+      </button>
+    </div>
+    <div id="fpStep2" style="display:none;flex-direction:column;gap:14px;">
+      <div class="form-error" id="fpError2"></div>
+      <p style="font-size:13px;color:var(--text-dim)" id="fpHint">Enter the 6-digit code sent to your email.</p>
+      <div class="otp-grid">
+        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]">
+        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]">
+        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]">
+        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]">
+        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]">
+        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]">
+      </div>
+      <div class="input-group">
+        <label id="newPwLabel">New password</label>
+        <input type="password" id="fpNewPassword" placeholder="Min. 8 characters" minlength="8">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="verifyAndReset()" id="fpResetBtn">
+        <span id="fpResetText">Reset Password</span>
+      </button>
     </div>
   </div>
 </div>
 
-<!-- Forgot Password Modal -->
-<div class="modal-overlay" id="forgotModal">
-  <div class="modal-box" style="position:relative;">
-    <button class="modal-close" onclick="closeForgot()">&times;</button>
-    <!-- Step 1: enter email -->
-    <div id="forgotStep1">
-      <div class="modal-title" data-en="Reset Password" data-bn="পাসওয়ার্ড রিসেট">পাসওয়ার্ড রিসেট</div>
-      <div class="modal-sub" data-en="Enter your email and we'll send a 6-digit code." data-bn="তোমার ইমেইলে একটি ৬-সংখ্যার কোড পাঠানো হবে।">তোমার ইমেইলে একটি ৬-সংখ্যার কোড পাঠানো হবে।</div>
-      <div>
-        <div class="field-label">Email</div>
-        <input class="field-input" type="email" id="forgotEmail" placeholder="you@school.edu"/>
-      </div>
-      <div class="msg-box" id="forgotMsg1"></div>
-      <button class="btn-primary" onclick="sendOTP()">Send Code</button>
-    </div>
-    <!-- Step 2: enter OTP + new password -->
-    <div id="forgotStep2" style="display:none;flex-direction:column;gap:14px;">
-      <div class="modal-title">Enter Code</div>
-      <div class="modal-sub" id="forgotStep2Sub">Code sent to your email. Expires in 10 minutes.</div>
-      <div>
-        <div class="field-label">6-Digit Code</div>
-        <input class="field-input" type="text" id="otpCode" placeholder="000000" maxlength="6" inputmode="numeric" style="letter-spacing:6px;font-size:22px;text-align:center;"/>
-      </div>
-      <div>
-        <div class="field-label">New Password</div>
-        <input class="field-input" type="password" id="newPw" placeholder="Min. 6 characters"/>
-      </div>
-      <div class="msg-box" id="forgotMsg2"></div>
-      <button class="btn-primary" onclick="confirmOTP()">Reset Password</button>
-    </div>
-  </div>
-</div>
+<div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 <script>
-// ── language ──────────────────────────────────────────────────────────────────
-let lang = localStorage.getItem("shikhbo_lang") || "bn";
+/* ── Theme init ──────────────────────────────────────────────────────────── */
+(function(){
+  const t = localStorage.getItem('shikhbo-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  const btn = document.getElementById('themeToggle');
+  if(btn) btn.textContent = t==='dark' ? '🌙' : '☀️';
+})();
 
-const STRINGS = {
-  heroLabel: { bn: "তোমার AI স্টাডি পার্টনার", en: "Your AI Study Partner" },
-  heroTitle: { bn: "শিখবো এখন<br><em>আরও সহজ।</em>", en: "Learn smarter,<br><em>not harder.</em>" },
-  heroSub: { bn: "কঠিন টপিক এখন হাতের মুঠোয়। পাঠ্যবই থেকে সরাসরি উত্তর — ধাপে ধাপে, তোমার ভাষায়।", en: "Tough topics, now in your pocket. Textbook-grounded answers — step by step, your way." },
-  langBtn: { bn: "English", en: "বাংলা" },
-};
-
-function applyLang() {
-  document.querySelectorAll("[data-bn]").forEach(el => {
-    el.textContent = lang === "bn" ? el.dataset.bn : el.dataset.en;
-  });
-  document.getElementById("heroLabel").textContent = STRINGS.heroLabel[lang];
-  document.getElementById("heroTitle").innerHTML = STRINGS.heroTitle[lang];
-  document.getElementById("heroSub").textContent = STRINGS.heroSub[lang];
-  document.getElementById("langBtn").textContent = STRINGS.langBtn[lang];
-}
-
-function toggleLang() {
-  lang = lang === "bn" ? "en" : "bn";
-  localStorage.setItem("shikhbo_lang", lang);
-  applyLang();
-}
-applyLang();
-
-// ── tab switch ────────────────────────────────────────────────────────────────
-function switchTab(tab) {
-  document.getElementById("formLogin").classList.toggle("active", tab === "login");
-  document.getElementById("formSignup").classList.toggle("active", tab === "signup");
-  document.getElementById("tabLogin").classList.toggle("active", tab === "login");
-  document.getElementById("tabSignup").classList.toggle("active", tab === "signup");
-}
-
-// ── auth ──────────────────────────────────────────────────────────────────────
-function showMsg(id, msg, type) {
-  const el = document.getElementById(id);
-  el.textContent = msg;
-  el.className = `msg-box ${type}`;
-  el.style.display = "block";
-}
-
-async function handleLogin(e) {
-  e.preventDefault();
-  const btn = document.getElementById("loginBtn");
-  btn.disabled = true;
-  btn.textContent = "…";
-  try {
-    const res = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: loginEmail.value, password: loginPw.value }),
-    });
-    const data = await res.json();
-    if (res.ok) { window.location.href = "/chat"; }
-    else { showMsg("loginMsg", data.error, "error"); }
-  } catch { showMsg("loginMsg", "Network error. Try again.", "error"); }
-  finally { btn.disabled = false; btn.textContent = btn.dataset.bn || "লগ ইন"; }
-}
-
-async function handleSignup(e) {
-  e.preventDefault();
-  const btn = document.getElementById("signupBtn");
-  btn.disabled = true;
-  btn.textContent = "…";
-  try {
-    const res = await fetch("/api/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: signupName.value,
-        email: signupEmail.value,
-        password: signupPw.value,
-        class: signupClass.value,
-        curriculum: signupCurriculum.value,
-      }),
-    });
-    const data = await res.json();
-    if (res.ok) { window.location.href = "/chat"; }
-    else { showMsg("signupMsg", data.error, "error"); }
-  } catch { showMsg("signupMsg", "Network error. Try again.", "error"); }
-  finally { btn.disabled = false; btn.textContent = btn.dataset.bn || "একাউন্ট তৈরি করুন"; }
-}
-
-function googleLogin() { window.location.href = "/api/auth/google"; }
-
-// ── forgot password ───────────────────────────────────────────────────────────
-let forgotEmailValue = "";
-
-function openForgot() { document.getElementById("forgotModal").classList.add("open"); }
-function closeForgot() {
-  document.getElementById("forgotModal").classList.remove("open");
-  document.getElementById("forgotStep1").style.display = "";
-  document.getElementById("forgotStep2").style.display = "none";
-}
-
-async function sendOTP() {
-  forgotEmailValue = document.getElementById("forgotEmail").value.trim();
-  if (!forgotEmailValue) return;
-  try {
-    const res = await fetch("/api/forgot-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: forgotEmailValue }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      document.getElementById("forgotStep1").style.display = "none";
-      document.getElementById("forgotStep2").style.display = "flex";
-      document.getElementById("forgotStep2Sub").textContent = `Code sent to ${forgotEmailValue}. Expires in 10 minutes.`;
-    } else {
-      showMsg("forgotMsg1", data.error, "error");
-    }
-  } catch { showMsg("forgotMsg1", "Network error.", "error"); }
-}
-
-async function confirmOTP() {
-  const code = document.getElementById("otpCode").value.trim();
-  const newPw = document.getElementById("newPw").value.trim();
-  if (!code || !newPw) return;
-  try {
-    const res = await fetch("/api/verify-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: forgotEmailValue, code, new_password: newPw }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      closeForgot();
-      showMsg("loginMsg", "Password reset! You can now log in.", "success");
-      switchTab("login");
-    } else {
-      showMsg("forgotMsg2", data.error, "error");
-    }
-  } catch { showMsg("forgotMsg2", "Network error.", "error"); }
-}
-
-// close modal on backdrop click
-document.getElementById("forgotModal").addEventListener("click", e => {
-  if (e.target === e.currentTarget) closeForgot();
+document.getElementById('themeToggle').addEventListener('click', function(){
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur==='dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('shikhbo-theme', next);
+  this.textContent = next==='dark' ? '🌙' : '☀️';
+  if(window._particleMat) window._particleMat.color.set(next==='dark' ? 0x4a7fc1 : 0x3b82f6);
 });
 
-// check for error in URL params (from Google OAuth failure)
-const params = new URLSearchParams(window.location.search);
-if (params.get("error")) {
-  showMsg("loginMsg", "Google login failed: " + params.get("error"), "error");
+window.addEventListener('scroll',()=>{
+  document.getElementById('topbar').classList.toggle('scrolled', window.scrollY > 10);
+});
+
+/* ── Three.js ────────────────────────────────────────────────────────────── */
+(function(){
+  const canvas = document.getElementById('bg-canvas');
+  if(!window.THREE){ return; }
+  const W = window.innerWidth, H = window.innerHeight;
+  const renderer = new THREE.WebGLRenderer({canvas, alpha:true, antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(W, H);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, W/H, 0.1, 100);
+  camera.position.z = 4;
+
+  const COUNT = 800;
+  const pos = new Float32Array(COUNT*3);
+  const spd = new Float32Array(COUNT);
+  for(let i=0;i<COUNT;i++){
+    pos[i*3]   = (Math.random()-0.5)*16;
+    pos[i*3+1] = (Math.random()-0.5)*12;
+    pos[i*3+2] = (Math.random()-0.5)*10;
+    spd[i] = 0.0006 + Math.random()*0.001;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+
+  const isDark = document.documentElement.getAttribute('data-theme')!=='light';
+  const mat = new THREE.PointsMaterial({
+    size:0.022, color: isDark ? 0x4a7fc1 : 0x3b82f6,
+    transparent:true, opacity:0.50, sizeAttenuation:true
+  });
+  window._particleMat = mat;
+  const pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+
+  let mx=0, my=0;
+  document.addEventListener('mousemove', e=>{
+    mx = (e.clientX/innerWidth - 0.5)*0.4;
+    my = (e.clientY/innerHeight - 0.5)*0.25;
+  });
+
+  (function tick(){
+    requestAnimationFrame(tick);
+    const a = geo.attributes.position.array;
+    for(let i=0;i<COUNT;i++){
+      a[i*3+1] += spd[i];
+      if(a[i*3+1]>6) a[i*3+1]=-6;
+    }
+    geo.attributes.position.needsUpdate = true;
+    pts.rotation.y += 0.0003 + mx*0.0004;
+    pts.rotation.x -= my*0.0004;
+    renderer.render(scene, camera);
+  })();
+
+  window.addEventListener('resize',()=>{
+    renderer.setSize(innerWidth, innerHeight);
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+  });
+})();
+
+/* ── GSAP entrance ───────────────────────────────────────────────────────── */
+window.addEventListener('load', function(){
+  if(!window.gsap) return;
+  gsap.to('#heroBadge',{opacity:1, y:0, duration:0.65, delay:0.15, ease:'power3.out'});
+  gsap.to('#heroTitle', {opacity:1, y:0, duration:0.75, delay:0.30, ease:'power3.out'});
+  gsap.to('#heroSub',   {opacity:1, y:0, duration:0.65, delay:0.45, ease:'power3.out'});
+  gsap.to('#authCard',  {opacity:1, y:0, scale:1, duration:0.75, delay:0.55, ease:'back.out(1.5)'});
+  gsap.to('#features',  {opacity:1, y:0, duration:0.55, delay:0.80, ease:'power2.out'});
+  gsap.from('.feature-chip',{opacity:0, y:12, stagger:0.07, duration:0.4, delay:0.95, ease:'power2.out'});
+});
+
+/* ── Language ────────────────────────────────────────────────────────────── */
+const STRINGS = {
+  en:{
+    badge:'AI-Powered · Curriculum-Aligned · Free',
+    t1:'Learn smarter with', tA:'শিখবো AI',
+    sub:'Your personal AI tutor for NCTB and Edexcel A-Level — grounded in your actual textbooks.',
+    tl:'Log In', tr:'Create Account', ggl:'Continue with Google', or:'or',
+    le:'Email address', lp:'Password', lb:'Log In', fp:'Forgot password?',
+    nm:'Full name', cl:'Class / Level', cu:'Curriculum',
+    re:'Email address', rp:'Password', rb:'Create Account',
+    f1:'RAG-grounded answers',f2:'NCTB + Edexcel textbooks',f3:'Image OCR (Qwen VL)',
+    f4:'Streaming responses',f5:'Privacy-first',f6:'Dark + Light mode',
+  },
+  bn:{
+    badge:'AI-চালিত · পাঠ্যক্রম-ভিত্তিক · বিনামূল্যে',
+    t1:'আরও স্মার্টভাবে শেখো', tA:'শিখবো AI-তে',
+    sub:'NCTB এবং Edexcel A-Level-এর জন্য তোমার ব্যক্তিগত AI শিক্ষক — পাঠ্যবই থেকে সরাসরি।',
+    tl:'লগ ইন', tr:'নতুন অ্যাকাউন্ট', ggl:'Google দিয়ে চালিয়ে যাও', or:'অথবা',
+    le:'ইমেইল ঠিকানা', lp:'পাসওয়ার্ড', lb:'লগ ইন', fp:'পাসওয়ার্ড ভুলে গেছ?',
+    nm:'পূর্ণ নাম', cl:'শ্রেণী', cu:'পাঠ্যক্রম',
+    re:'ইমেইল ঠিকানা', rp:'পাসওয়ার্ড', rb:'অ্যাকাউন্ট তৈরি করুন',
+    f1:'পাঠ্যবই-ভিত্তিক উত্তর',f2:'NCTB + Edexcel পাঠ্যবই',f3:'ছবি OCR (Qwen VL)',
+    f4:'স্ট্রিমিং রেসপন্স',f5:'প্রাইভেসি-ফার্স্ট',f6:'ডার্ক + লাইট মোড',
+  }
+};
+let lang='en';
+function setLang(l){
+  lang=l;
+  document.getElementById('btnEn').classList.toggle('active',l==='en');
+  document.getElementById('btnBn').classList.toggle('active',l==='bn');
+  const s=STRINGS[l];
+  document.getElementById('badgeText').textContent=s.badge;
+  document.getElementById('titleLine1').textContent=s.t1;
+  document.getElementById('titleAccent').textContent=s.tA;
+  document.getElementById('subText').textContent=s.sub;
+  document.getElementById('tabLoginLabel').textContent=s.tl;
+  document.getElementById('tabRegisterLabel').textContent=s.tr;
+  document.getElementById('googleBtnText').textContent=s.ggl;
+  document.getElementById('orText').textContent=s.or;
+  document.getElementById('loginEmailLabel').textContent=s.le;
+  document.getElementById('loginPasswordLabel').textContent=s.lp;
+  document.getElementById('loginBtnText').textContent=s.lb;
+  document.getElementById('forgotLink').textContent=s.fp;
+  document.getElementById('nameLabel').textContent=s.nm;
+  document.getElementById('classLabel').textContent=s.cl;
+  document.getElementById('curriculumLabel').textContent=s.cu;
+  document.getElementById('regEmailLabel').textContent=s.re;
+  document.getElementById('regPasswordLabel').textContent=s.rp;
+  document.getElementById('registerBtnText').textContent=s.rb;
+  ['f1','f2','f3','f4','f5','f6'].forEach(id=>document.getElementById(id).textContent=s[id]);
+  if(window.gsap) gsap.from('.feature-chip',{opacity:0,y:8,stagger:0.05,duration:0.3});
+}
+
+function switchTab(tab){
+  const isL=tab==='login';
+  document.getElementById('tabLogin').classList.toggle('active',isL);
+  document.getElementById('tabRegister').classList.toggle('active',!isL);
+  document.getElementById('loginForm').classList.toggle('hidden',!isL);
+  document.getElementById('registerForm').classList.toggle('hidden',isL);
+  if(window.gsap) gsap.from(isL?'#loginForm':'#registerForm',{opacity:0,y:10,duration:0.3,ease:'power2.out'});
+}
+
+function showToast(msg,type='info'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className=`toast toast-${type} show`;
+  setTimeout(()=>t.classList.remove('show'),3200);
+}
+
+function googleLogin(){ window.location.href='/api/auth/google'; }
+
+async function submitLogin(e){
+  e.preventDefault();
+  const btn=document.getElementById('loginBtn');
+  const err=document.getElementById('loginError');
+  btn.disabled=true; btn.innerHTML='<div class="spinner"></div>';
+  err.classList.remove('visible');
+  try{
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
+      body:JSON.stringify({email:document.getElementById('loginEmail').value,password:document.getElementById('loginPassword').value})});
+    const d=await r.json();
+    if(!r.ok){err.textContent=d.error||'Login failed';err.classList.add('visible');}
+    else{showToast('Welcome back! 👋','success');setTimeout(()=>window.location.href='/chat',600);}
+  }catch{err.textContent='Network error. Try again.';err.classList.add('visible');}
+  finally{btn.disabled=false;btn.innerHTML=`<span id="loginBtnText">${STRINGS[lang].lb}</span>`;}
+}
+
+async function submitRegister(e){
+  e.preventDefault();
+  const btn=document.getElementById('registerBtn');
+  const err=document.getElementById('registerError');
+  btn.disabled=true; btn.innerHTML='<div class="spinner"></div>';
+  err.classList.remove('visible');
+  try{
+    const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
+      body:JSON.stringify({name:document.getElementById('regName').value,email:document.getElementById('regEmail').value,
+        password:document.getElementById('regPassword').value,class:document.getElementById('regClass').value,
+        curriculum:document.getElementById('regCurriculum').value})});
+    const d=await r.json();
+    if(!r.ok){err.textContent=d.error||'Registration failed';err.classList.add('visible');}
+    else{showToast('Welcome to Shikhbo ✨','success');setTimeout(()=>window.location.href='/chat',700);}
+  }catch{err.textContent='Network error. Try again.';err.classList.add('visible');}
+  finally{btn.disabled=false;btn.innerHTML=`<span>${STRINGS[lang].rb}</span>`;}
+}
+
+function openForgotPassword(){
+  document.getElementById('fpOverlay').classList.add('open');
+  document.getElementById('fpStep1').style.display='flex';
+  document.getElementById('fpStep2').style.display='none';
+}
+function closeForgotPassword(){document.getElementById('fpOverlay').classList.remove('open');}
+document.getElementById('fpOverlay').addEventListener('click',function(e){if(e.target===this)closeForgotPassword();});
+
+async function sendOtp(){
+  const email=document.getElementById('fpEmail').value.trim();
+  const err=document.getElementById('fpError1');
+  const btn=document.getElementById('fpSendBtn');
+  if(!email){err.textContent='Enter your email.';err.classList.add('visible');return;}
+  btn.disabled=true; btn.innerHTML='<div class="spinner"></div>';
+  err.classList.remove('visible');
+  try{
+    const r=await fetch('/api/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const d=await r.json();
+    if(!r.ok){err.textContent=d.error||'Failed';err.classList.add('visible');}
+    else{
+      document.getElementById('fpStep1').style.display='none';
+      document.getElementById('fpStep2').style.display='flex';
+      document.getElementById('fpHint').textContent='Code sent to: '+email;
+      setTimeout(()=>document.querySelector('.otp-input').focus(),100);
+    }
+  }catch{err.textContent='Network error.';err.classList.add('visible');}
+  finally{btn.disabled=false;btn.innerHTML='<span id="fpSendText">Send OTP</span>';}
+}
+
+document.querySelectorAll('.otp-input').forEach((inp,i,arr)=>{
+  inp.addEventListener('input',()=>{
+    inp.value=inp.value.replace(/\D/g,'').slice(-1);
+    if(inp.value&&i<arr.length-1)arr[i+1].focus();
+  });
+  inp.addEventListener('keydown',e=>{if(e.key==='Backspace'&&!inp.value&&i>0)arr[i-1].focus();});
+});
+
+async function verifyAndReset(){
+  const otp=[...document.querySelectorAll('.otp-input')].map(i=>i.value).join('');
+  const pw=document.getElementById('fpNewPassword').value;
+  const email=document.getElementById('fpEmail').value.trim();
+  const err=document.getElementById('fpError2');
+  const btn=document.getElementById('fpResetBtn');
+  if(otp.length<6){err.textContent='Enter all 6 digits.';err.classList.add('visible');return;}
+  if(pw.length<8){err.textContent='Password must be ≥ 8 characters.';err.classList.add('visible');return;}
+  btn.disabled=true; btn.innerHTML='<div class="spinner"></div>';
+  err.classList.remove('visible');
+  try{
+    const r=await fetch('/api/verify-otp',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,otp,new_password:pw,purpose:'reset'})});
+    const d=await r.json();
+    if(!r.ok){err.textContent=d.error||'Invalid OTP';err.classList.add('visible');}
+    else{showToast('Password reset ✅','success');closeForgotPassword();switchTab('login');}
+  }catch{err.textContent='Network error.';err.classList.add('visible');}
+  finally{btn.disabled=false;btn.innerHTML='<span>Reset Password</span>';}
 }
 </script>
 </body>
