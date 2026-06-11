@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Shikhbo — Pricing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/main.css">
+<script>(function(){var t=localStorage.getItem('shikhbo-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{min-height:100vh;font-family:'Inter','Noto Sans Bengali',sans-serif;}
+[data-theme="light"] html{background:linear-gradient(135deg,#F2CBA8 0%,#CDC8EC 55%,#F3F1EE 100%) fixed center/cover;}
+[data-theme="light"] body{background:transparent;}
+
+/* ── Page shell ── */
+.page{min-height:100vh;display:flex;flex-direction:column;background:var(--bg);}
+[data-theme="light"] .page{background:transparent;}
+
+/* ── Topnav ── */
+.nav{display:flex;align-items:center;justify-content:space-between;padding:14px 32px;flex-shrink:0;}
+.nav-logo{display:flex;align-items:center;gap:9px;text-decoration:none;}
+.logo-dot{width:30px;height:30px;border-radius:50%;background:#EE7A6E;display:flex;align-items:center;justify-content:center;}
+.logo-dot svg{width:14px;height:14px;stroke:white;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.logo-name{font-size:16px;font-weight:600;color:var(--text);}
+.nav-right{display:flex;align-items:center;gap:10px;}
+.nav-back{display:flex;align-items:center;gap:5px;padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-size:13px;cursor:pointer;font-family:inherit;transition:all .14s;text-decoration:none;}
+.nav-back:hover{border-color:var(--border-active);color:var(--text);}
+.nav-back svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.theme-btn{width:30px;height:30px;border-radius:8px;border:none;background:transparent;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s;}
+.theme-btn:hover{background:var(--surface-2);color:var(--text);}
+.theme-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+
+/* ── Hero ── */
+.hero{text-align:center;padding:52px 24px 36px;}
+.hero-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:999px;background:rgba(238,122,110,.12);border:1px solid rgba(238,122,110,.22);color:#EE7A6E;font-size:12px;font-weight:500;margin-bottom:18px;}
+.hero-badge svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.hero-title{font-size:36px;font-weight:600;letter-spacing:-.02em;color:var(--text);margin-bottom:10px;line-height:1.2;}
+@media(max-width:480px){.hero-title{font-size:26px;}}
+.hero-sub{font-size:15px;color:var(--text-dim);max-width:460px;margin:0 auto;}
+
+/* ── Tier cards ── */
+.tiers{display:flex;gap:18px;justify-content:center;padding:0 24px 52px;flex-wrap:wrap;max-width:900px;margin:0 auto;}
+.tier-card{flex:1;min-width:280px;max-width:360px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px;display:flex;flex-direction:column;position:relative;transition:transform .18s,box-shadow .18s;}
+[data-theme="light"] .tier-card{border:none;box-shadow:0 4px 24px rgba(0,0,0,.07);}
+.tier-card:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(0,0,0,.12);}
+.tier-card.featured{border-color:rgba(238,122,110,.35);}
+[data-theme="light"] .tier-card.featured{box-shadow:0 8px 40px rgba(238,122,110,.18);}
+.tier-badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:#EE7A6E;color:white;font-size:11px;font-weight:600;padding:3px 12px;border-radius:999px;white-space:nowrap;}
+.tier-name{font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;}
+.tier-price{display:flex;align-items:baseline;gap:4px;margin-bottom:4px;}
+.tier-amount{font-size:38px;font-weight:700;color:var(--text);letter-spacing:-.02em;}
+.tier-currency{font-size:16px;font-weight:500;color:var(--text-dim);}
+.tier-period{font-size:13px;color:var(--text-muted);}
+.tier-desc{font-size:13px;color:var(--text-dim);margin-bottom:24px;margin-top:6px;line-height:1.5;}
+.tier-features{display:flex;flex-direction:column;gap:10px;margin-bottom:28px;flex:1;}
+.feat-row{display:flex;align-items:center;gap:9px;font-size:13.5px;}
+.feat-ico{width:18px;height:18px;border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.feat-ico.check{background:rgba(34,197,94,.12);}
+.feat-ico.check svg{width:10px;height:10px;stroke:#22c55e;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;}
+.feat-ico.cross{background:rgba(239,68,68,.08);}
+.feat-ico.cross svg{width:9px;height:9px;stroke:#6b7280;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+.feat-text{color:var(--text);}
+.feat-text.dim{color:var(--text-muted);}
+.tier-cta{width:100%;padding:11px;border-radius:12px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .14s;border:none;}
+.cta-free{background:var(--surface-2);color:var(--text);border:1px solid var(--border);}
+.cta-free:hover{background:var(--surface-3);}
+.cta-premium{background:#1B1B1D;color:white;}
+[data-theme="light"] .cta-premium{background:#EE7A6E;}
+.cta-premium:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 6px 20px rgba(238,122,110,.3);}
+
+/* ── Payment modal ── */
+.pay-modal-bg{position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:16px;}
+.pay-modal-bg.open{display:flex;}
+.pay-modal{background:var(--surface);border:1px solid var(--border);border-radius:22px;width:100%;max-width:440px;overflow:hidden;box-shadow:0 24px 72px rgba(0,0,0,.22);}
+[data-theme="light"] .pay-modal{border:none;box-shadow:0 24px 80px rgba(0,0,0,.16);}
+.pay-head{padding:20px 22px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.pay-title{font-size:16px;font-weight:600;color:var(--text);}
+.pay-subtitle{font-size:12px;color:var(--text-muted);margin-top:1px;}
+.pay-cls{width:27px;height:27px;border-radius:7px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-dim);}
+.pay-cls:hover{background:var(--surface-3);}
+.pay-cls svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+.pay-summary{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;background:var(--surface-2);border-bottom:1px solid var(--border);}
+.pay-plan{font-size:13px;color:var(--text-dim);}
+.pay-amount{font-size:18px;font-weight:600;color:var(--text);}
+.pay-amount span{font-size:12px;font-weight:400;color:var(--text-muted);}
+
+/* Method tabs */
+.method-tabs{display:flex;gap:8px;padding:16px 22px 0;}
+.method-tab{flex:1;padding:10px 6px;border-radius:11px;border:1.5px solid var(--border);background:transparent;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;transition:all .14s;font-family:inherit;}
+.method-tab:hover{border-color:var(--border-hover);}
+.method-tab.active{border-color:var(--border-active);background:var(--surface-2);}
+.method-tab-logo{height:22px;display:flex;align-items:center;justify-content:center;}
+.method-tab-name{font-size:11px;font-weight:500;color:var(--text-dim);}
+.method-tab.active .method-tab-name{color:var(--text);}
+
+/* bKash brand */
+.bkash-logo{font-size:16px;font-weight:700;color:#E2136E;letter-spacing:-.5px;}
+.stripe-logo{font-size:15px;font-weight:700;color:#635BFF;letter-spacing:-.3px;}
+.card-logo-row{display:flex;gap:3px;}
+.card-brand{font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;}
+.card-brand.visa{background:#1A1F71;color:white;}
+.card-brand.mc{background:#EB001B;color:white;}
+
+/* Method panes */
+.method-panes{padding:18px 22px 20px;}
+.method-pane{display:none;}
+.method-pane.active{display:block;}
+
+/* bKash pane */
+.bkash-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+.bkash-icon{width:44px;height:44px;border-radius:12px;background:#E2136E;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:white;letter-spacing:-.5px;}
+.bkash-info{font-size:12px;color:var(--text-dim);line-height:1.5;}
+.bkash-info strong{color:var(--text);}
+.fl{font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px;}
+.fi{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;color:var(--text);outline:none;transition:border-color .15s;font-family:inherit;}
+.fi:focus{border-color:var(--border-active);}
+.fi-row{display:flex;gap:10px;}
+.fi-row > div{flex:1;}
+.pay-btn{width:100%;padding:12px;border-radius:12px;background:#E2136E;color:white;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .14s;margin-top:16px;}
+.pay-btn:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 6px 20px rgba(226,19,110,.3);}
+.pay-btn.stripe-btn{background:#635BFF;}
+.pay-btn.stripe-btn:hover{box-shadow:0 6px 20px rgba(99,91,255,.3);}
+.pay-btn.card-btn{background:#1B1B1D;}
+[data-theme="light"] .pay-btn.card-btn{background:#1A1F71;}
+.pay-btn.card-btn:hover{box-shadow:0 6px 20px rgba(0,0,0,.2);}
+
+/* Card form */
+.card-input-wrap{position:relative;}
+.card-input-brands{position:absolute;right:10px;top:50%;transform:translateY(-50%);display:flex;gap:3px;}
+.card-input-brands .card-brand{font-size:8px;padding:1px 4px;}
+.input-hint{font-size:11px;color:var(--text-muted);margin-top:4px;}
+
+/* Stripe redirect */
+.stripe-msg{display:flex;flex-direction:column;align-items:center;gap:14px;padding:20px 0;}
+.stripe-big-logo{font-size:28px;font-weight:700;color:#635BFF;letter-spacing:-.5px;}
+.stripe-secure{font-size:13px;color:var(--text-dim);text-align:center;line-height:1.5;}
+.stripe-lock{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);}
+.stripe-lock svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+
+/* Success screen */
+.success-screen{display:none;flex-direction:column;align-items:center;gap:14px;padding:32px 22px;text-align:center;}
+.success-screen.show{display:flex;}
+.success-ico{width:56px;height:56px;border-radius:50%;background:rgba(34,197,94,.12);border:2px solid rgba(34,197,94,.3);display:flex;align-items:center;justify-content:center;}
+.success-ico svg{width:24px;height:24px;stroke:#22c55e;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+.success-title{font-size:18px;font-weight:600;color:var(--text);}
+.success-sub{font-size:13px;color:var(--text-dim);line-height:1.5;}
+.success-back{padding:9px 22px;border-radius:999px;background:#1B1B1D;color:white;border:none;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .14s;text-decoration:none;display:inline-block;}
+.success-back:hover{opacity:.85;}
+
+/* Divider */
+.hr{height:1px;background:var(--border);margin:12px 0;}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Nav -->
+  <nav class="nav">
+    <a href="/chat" class="nav-logo">
+      <div class="logo-dot"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+      <span class="logo-name">Shikhbo</span>
+    </a>
+    <div class="nav-right">
+      <a href="/chat" class="nav-back">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        Back to Chat
+      </a>
+      <button class="theme-btn" onclick="toggleTheme()">
+        <svg viewBox="0 0 24 24" id="themeIco"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-badge">
+      <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      Simple, transparent pricing
+    </div>
+    <h1 class="hero-title">Choose your plan</h1>
+    <p class="hero-sub">Start free. Upgrade when you need Bangla voice, image scanning, and unlimited answers.</p>
+  </div>
+
+  <!-- Tier cards -->
+  <div class="tiers">
+
+    <!-- Free -->
+    <div class="tier-card">
+      <div class="tier-name">Free</div>
+      <div class="tier-price">
+        <span class="tier-amount">0</span>
+        <span class="tier-currency">Tk</span>
+        <span class="tier-period">/month</span>
+      </div>
+      <div class="tier-desc">Everything you need to get started with AI-powered textbook learning.</div>
+      <div class="tier-features">
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text">20 messages per day</span></div>
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text">Text chat with RAG citations</span></div>
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text">NCTB curriculum support</span></div>
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text">Simple &amp; Quiz modes</span></div>
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text">Voice input (STT)</span></div>
+        <div class="feat-row"><div class="feat-ico cross"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><span class="feat-text dim">Image / PDF upload</span></div>
+        <div class="feat-row"><div class="feat-ico cross"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><span class="feat-text dim">Bangla TTS voice output</span></div>
+        <div class="feat-row"><div class="feat-ico cross"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><span class="feat-text dim">Step-by-Step mode</span></div>
+        <div class="feat-row"><div class="feat-ico cross"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><span class="feat-text dim">Edexcel curriculum</span></div>
+      </div>
+      <a href="/chat" class="tier-cta cta-free">Continue with Free</a>
+    </div>
+
+    <!-- Premium -->
+    <div class="tier-card featured">
+      <div class="tier-badge">Most Popular</div>
+      <div class="tier-name">Premium</div>
+      <div class="tier-price">
+        <span class="tier-amount">999</span>
+        <span class="tier-currency">Tk</span>
+        <span class="tier-period">/month</span>
+      </div>
+      <div class="tier-desc">The full Shikhbo experience. Unlimited questions, voice, images, and both curricula.</div>
+      <div class="tier-features">
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text"><strong>Unlimited</strong> messages</span></div>
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text">Text, Voice &amp; Image chat</span></div>
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text">NCTB + Edexcel curricula</span></div>
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text">All learning modes</span></div>
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text">Voice input (STT) + <strong>Bangla</strong></span></div>
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text">Image &amp; PDF OCR analysis</span></div>
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text"><strong>Bangla TTS</strong> voice output</span></div>
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text">Step-by-Step solutions</span></div>
+        <div class="feat-row"><div class="feat-ico check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><span class="feat-text">Priority response speed</span></div>
+      </div>
+      <button class="tier-cta cta-premium" onclick="openPayModal()">Get Premium &rarr;</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Payment modal -->
+<div class="pay-modal-bg" id="payModalBg" onclick="if(event.target===this)closePayModal()">
+  <div class="pay-modal">
+
+    <!-- Success screen (shown after "payment") -->
+    <div class="success-screen" id="successScreen">
+      <div class="success-ico">
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="success-title">Payment Successful!</div>
+      <div class="success-sub">Welcome to Shikhbo Premium. You now have unlimited access to all features including Bangla voice and image analysis.</div>
+      <a href="/chat" class="success-back">Start Learning &rarr;</a>
+    </div>
+
+    <!-- Payment form (hidden after success) -->
+    <div id="payForm">
+      <div class="pay-head">
+        <div>
+          <div class="pay-title">Complete your purchase</div>
+          <div class="pay-subtitle">Shikhbo Premium — monthly subscription</div>
+        </div>
+        <button class="pay-cls" onclick="closePayModal()">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="pay-summary">
+        <div class="pay-plan">Shikhbo Premium · 1 month</div>
+        <div class="pay-amount">৳999 <span>/month</span></div>
+      </div>
+
+      <!-- Method tabs -->
+      <div class="method-tabs">
+        <button class="method-tab active" id="tabBkash" onclick="switchMethod('bkash')">
+          <div class="method-tab-logo"><span class="bkash-logo">bKash</span></div>
+          <div class="method-tab-name">bKash</div>
+        </button>
+        <button class="method-tab" id="tabCard" onclick="switchMethod('card')">
+          <div class="method-tab-logo">
+            <div class="card-logo-row">
+              <span class="card-brand visa">VISA</span>
+              <span class="card-brand mc">MC</span>
+            </div>
+          </div>
+          <div class="method-tab-name">Card</div>
+        </button>
+        <button class="method-tab" id="tabStripe" onclick="switchMethod('stripe')">
+          <div class="method-tab-logo"><span class="stripe-logo">stripe</span></div>
+          <div class="method-tab-name">Stripe</div>
+        </button>
+      </div>
+
+      <!-- Panes -->
+      <div class="method-panes">
+
+        <!-- bKash pane -->
+        <div class="method-pane active" id="paneBkash">
+          <div class="bkash-header">
+            <div class="bkash-icon">bK</div>
+            <div class="bkash-info">
+              Send money to <strong>01XXXXXXXXX</strong> (Shikhbo bKash)<br>
+              Amount: <strong>৳999</strong> · Reference: SHIKHBO-PREMIUM
+            </div>
+          </div>
+          <div style="margin-bottom:12px;">
+            <div class="fl">Your bKash number</div>
+            <input class="fi" type="tel" id="bkashPhone" placeholder="01XXXXXXXXX" maxlength="11">
+          </div>
+          <div style="margin-bottom:12px;">
+            <div class="fl">Transaction ID (from bKash SMS)</div>
+            <input class="fi" type="text" id="bkashTxn" placeholder="e.g. 8N7A2K9L3M">
+          </div>
+          <button class="pay-btn" onclick="mockPay()">Pay ৳999 with bKash</button>
+        </div>
+
+        <!-- Card pane -->
+        <div class="method-pane" id="paneCard">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <span style="font-size:12px;color:var(--text-dim);">Pay securely using your credit or debit card.</span>
+            <div class="card-logo-row">
+              <span class="card-brand visa">VISA</span>
+              <span class="card-brand mc">MC</span>
+              <span class="card-brand" style="background:#2557D6;color:white;">AMEX</span>
+            </div>
+          </div>
+          <div style="margin-bottom:12px;">
+            <div class="fl">Card Number</div>
+            <div class="card-input-wrap">
+              <input class="fi" type="text" id="cardNum" placeholder="4263 9700 0000 5262" maxlength="19" oninput="fmtCard(this)">
+              <div class="card-input-brands">
+                <span class="card-brand visa">VISA</span>
+              </div>
+            </div>
+          </div>
+          <div class="fi-row" style="margin-bottom:12px;">
+            <div>
+              <div class="fl">Expiry (MM/YY)</div>
+              <input class="fi" type="text" id="cardExp" placeholder="01/26" maxlength="5" oninput="fmtExpiry(this)">
+            </div>
+            <div>
+              <div class="fl">Security Code</div>
+              <input class="fi" type="text" id="cardCvv" placeholder="123" maxlength="4">
+            </div>
+          </div>
+          <div style="margin-bottom:12px;">
+            <div class="fl">Name on Card</div>
+            <input class="fi" type="text" id="cardName" placeholder="Full name as on card">
+          </div>
+          <button class="pay-btn card-btn" onclick="mockPay()">Place Order &mdash; ৳999</button>
+          <div class="input-hint" style="margin-top:8px;text-align:center;display:flex;align-items:center;justify-content:center;gap:5px;">
+            <svg style="width:11px;height:11px;stroke:var(--text-muted);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Secured by 256-bit SSL encryption
+          </div>
+        </div>
+
+        <!-- Stripe pane -->
+        <div class="method-pane" id="paneStripe">
+          <div class="stripe-msg">
+            <div class="stripe-big-logo">stripe</div>
+            <div class="stripe-secure">
+              You will be securely redirected to Stripe's payment page to complete your subscription of <strong>৳999/month</strong>.
+            </div>
+            <div class="stripe-lock">
+              <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Powered by Stripe · PCI DSS compliant
+            </div>
+          </div>
+          <div class="hr"></div>
+          <button class="pay-btn stripe-btn" onclick="mockPay()">Continue to Stripe &rarr;</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Theme ── */
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('shikhbo-theme', next);
+  const sun = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  const moon = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  document.getElementById('themeIco').innerHTML = next === 'dark' ? sun : moon;
+}
+// Init icon
+(function() {
+  const t = localStorage.getItem('shikhbo-theme') || 'dark';
+  const sun = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  const moon = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  setTimeout(() => { const el = document.getElementById('themeIco'); if (el) el.innerHTML = t === 'dark' ? sun : moon; }, 0);
+})();
+
+/* ── Modal ── */
+function openPayModal() { document.getElementById('payModalBg').classList.add('open'); }
+function closePayModal() { document.getElementById('payModalBg').classList.remove('open'); }
+
+/* ── Method switch ── */
+function switchMethod(m) {
+  ['bkash','card','stripe'].forEach(id => {
+    document.getElementById('tab' + id.charAt(0).toUpperCase() + id.slice(1)).classList.remove('active');
+    document.getElementById('pane' + id.charAt(0).toUpperCase() + id.slice(1)).classList.remove('active');
+  });
+  document.getElementById('tab' + m.charAt(0).toUpperCase() + m.slice(1)).classList.add('active');
+  document.getElementById('pane' + m.charAt(0).toUpperCase() + m.slice(1)).classList.add('active');
+}
+
+/* ── Card formatting ── */
+function fmtCard(el) {
+  let v = el.value.replace(/\D/g,'').slice(0,16);
+  el.value = v.replace(/(.{4})/g,'$1 ').trim();
+}
+function fmtExpiry(el) {
+  let v = el.value.replace(/\D/g,'').slice(0,4);
+  if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
+  el.value = v;
+}
+
+/* ── Mock payment ── */
+function mockPay() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Processing…';
+  setTimeout(() => {
+    document.getElementById('payForm').style.display = 'none';
+    document.getElementById('successScreen').classList.add('show');
+  }, 1800);
+}
+</script>
+</body>
+</html>

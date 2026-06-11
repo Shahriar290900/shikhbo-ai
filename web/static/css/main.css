@@ -34,34 +34,42 @@
   color-scheme: dark;
 }
 
-/* ── Light theme ─────────────────────────────────────────────────────────── */
+/* ── Light theme — Aurora design system ─────────────────────────────────── */
 [data-theme="light"] {
-  --bg:           #f0f2f7;
-  --surface:      #ffffff;
-  --surface-2:    #f5f7fc;
-  --surface-3:    #e8ecf5;
-  --surface-4:    #dde2ef;
-  --border:       rgba(0,0,0,0.07);
-  --border-hover: rgba(0,0,0,0.14);
-  --border-active:rgba(0,0,0,0.35);
-  --text:         #1a1d2e;
-  --text-dim:     #5a6070;
-  --text-muted:   #9aa0b0;
-  --accent:       #2563eb;
-  --accent-2:     #059669;
-  --accent-glow:  rgba(37,99,235,0.12);
-  --accent-dim:   rgba(0,0,0,0.04);
-  --red:          #dc2626;
-  --orange:       #d97706;
-  --shadow:       0 4px 24px rgba(0,0,0,0.10);
-  --shadow-sm:    0 2px 8px rgba(0,0,0,0.06);
-  --glass-bg:     rgba(255,255,255,0.85);
-  --glass-border: rgba(0,0,0,0.08);
-  --orb-1:        rgba(147,197,253,0.5);
-  --orb-2:        rgba(110,231,183,0.4);
-  --orb-3:        rgba(167,139,250,0.3);
+  --bg:           #F3F1EE;
+  --surface:      #FBFAF8;
+  --surface-2:    #F5F3EF;
+  --surface-3:    #EDE9E2;
+  --surface-4:    #E0DDD5;
+  --border:       rgba(26,26,26,0.07);
+  --border-hover: rgba(26,26,26,0.13);
+  --border-active:rgba(26,26,26,0.28);
+  --text:         #1A1A1A;
+  --text-dim:     #8B8B85;
+  --text-muted:   #ABABA4;
+  --accent:       #EE7A6E;
+  --accent-2:     #4F63D2;
+  --accent-glow:  rgba(238,122,110,0.12);
+  --accent-dim:   rgba(238,122,110,0.06);
+  --red:          #E04F43;
+  --orange:       #D97706;
+  --shadow:       0 20px 60px rgba(0,0,0,0.09);
+  --shadow-sm:    0 4px 16px rgba(0,0,0,0.06);
+  --glass-bg:     rgba(251,250,248,0.88);
+  --glass-border: rgba(255,255,255,0.6);
+  --orb-1:        rgba(242,203,168,0.65);
+  --orb-2:        rgba(205,200,236,0.65);
+  --orb-3:        rgba(243,241,238,0.5);
+  /* Aurora-specific extras */
+  --aurora-grad:  linear-gradient(135deg,#F2CBA8 0%,#CDC8EC 55%,#F3F1EE 100%);
+  --dark-nav:     #1B1B1D;
+  --insight-bg:   #FAEBE0;
   color-scheme: light;
 }
+
+/* Aurora body background in light mode */
+[data-theme="light"] html { background: linear-gradient(135deg,#F2CBA8 0%,#CDC8EC 55%,#F3F1EE 100%) fixed center/cover; }
+[data-theme="light"] body { background: transparent; }
 
 /* ── Theme transition ────────────────────────────────────────────────────── */
 html { transition: background-color 0.4s ease, color 0.4s ease; }

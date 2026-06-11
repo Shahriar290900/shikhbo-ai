@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Shikhbo — Setup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <script>(function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('shikhbo-theme')||'dark'); })();</script>
+  <style>
+    html,body{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px;overflow-y:auto;}
+
+    .ob-shell{width:100%;max-width:560px;}
+
+    /* Header */
+    .ob-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:40px;}
+    .ob-logo{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;color:var(--text);}
+    .ob-logo-dot{width:28px;height:28px;border-radius:7px;background:var(--accent);display:flex;align-items:center;justify-content:center;}
+    .ob-logo-dot svg{stroke:white;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+    .ob-step-label{font-size:12px;color:var(--text-muted);font-weight:500;}
+
+    /* Progress bar */
+    .ob-progress{height:2px;background:var(--surface-3);border-radius:2px;margin-bottom:40px;overflow:hidden;}
+    .ob-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.4s cubic-bezier(0.4,0,0.2,1);}
+
+    /* Step content */
+    .ob-step{display:none;}
+    .ob-step.active{display:block;}
+
+    .ob-eyebrow{font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;}
+    .ob-title{font-size:26px;font-weight:700;letter-spacing:-0.02em;margin-bottom:8px;line-height:1.15;}
+    .ob-sub{font-size:14px;color:var(--text-dim);margin-bottom:28px;line-height:1.6;}
+
+    /* Selection cards */
+    .card-grid{display:grid;gap:10px;}
+    .card-grid.cols-2{grid-template-columns:1fr 1fr;}
+    .card-grid.cols-3{grid-template-columns:1fr 1fr 1fr;}
+    @media(max-width:480px){.card-grid.cols-2,.card-grid.cols-3{grid-template-columns:1fr;}}
+
+    .sel-card{
+      border:1.5px solid var(--border);border-radius:12px;
+      padding:16px;cursor:pointer;text-align:left;
+      background:var(--surface);transition:all 0.15s;
+      display:flex;flex-direction:column;gap:7px;
+    }
+    .sel-card:hover{border-color:var(--border-hover);background:var(--surface-2);transform:translateY(-1px);}
+    .sel-card.selected{border-color:var(--accent);background:var(--accent-glow);}
+
+    .sc-icon{
+      width:34px;height:34px;border-radius:9px;
+      background:var(--surface-2);border:1px solid var(--border);
+      display:flex;align-items:center;justify-content:center;
+      transition:background 0.15s;
+    }
+    .sel-card.selected .sc-icon{background:var(--accent-glow);border-color:rgba(91,155,213,0.3);}
+    .sc-icon svg{width:16px;height:16px;stroke:var(--text-dim);fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;}
+    .sel-card.selected .sc-icon svg{stroke:var(--accent);}
+
+    .sc-title{font-size:14px;font-weight:600;color:var(--text);}
+    .sc-desc{font-size:12px;color:var(--text-muted);line-height:1.4;}
+
+    /* Nav buttons */
+    .ob-nav{display:flex;align-items:center;justify-content:space-between;margin-top:28px;gap:10px;}
+    .ob-back{
+      display:flex;align-items:center;gap:5px;
+      padding:9px 16px;border-radius:8px;
+      border:1px solid var(--border);background:transparent;
+      color:var(--text-dim);font-size:13px;font-weight:500;
+      cursor:pointer;font-family:inherit;transition:all 0.15s;
+    }
+    .ob-back:hover{border-color:var(--border-active);color:var(--text);}
+    .ob-back svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+    .ob-back:disabled{opacity:0.3;pointer-events:none;}
+
+    .ob-next{
+      display:flex;align-items:center;gap:6px;
+      padding:9px 20px;border-radius:8px;
+      background:var(--accent);border:none;
+      color:white;font-size:13px;font-weight:600;
+      cursor:pointer;font-family:inherit;transition:all 0.15s;
+      opacity:0.45;pointer-events:none;
+    }
+    .ob-next.ready{opacity:1;pointer-events:auto;}
+    .ob-next.ready:hover{opacity:.88;transform:translateY(-1px);}
+    .ob-next svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+
+    /* Step 4 — done screen */
+    .done-screen{text-align:center;padding:20px 0;}
+    .done-icon{
+      width:64px;height:64px;border-radius:16px;
+      background:var(--accent-glow);border:1px solid rgba(91,155,213,0.3);
+      display:flex;align-items:center;justify-content:center;
+      margin:0 auto 20px;
+    }
+    .done-icon svg{width:28px;height:28px;stroke:var(--accent);fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;}
+    .done-title{font-size:24px;font-weight:700;letter-spacing:-0.02em;margin-bottom:8px;}
+    .done-sub{font-size:14px;color:var(--text-dim);line-height:1.6;max-width:400px;margin:0 auto 28px;}
+    .done-summary{
+      background:var(--surface-2);border:1px solid var(--border);
+      border-radius:10px;padding:14px 16px;
+      display:flex;flex-direction:column;gap:8px;
+      text-align:left;margin-bottom:24px;
+    }
+    .ds-row{display:flex;align-items:center;justify-content:space-between;font-size:13px;}
+    .ds-label{color:var(--text-muted);}
+    .ds-val{font-weight:500;color:var(--text);}
+    .ob-launch{
+      width:100%;padding:12px;border-radius:9px;
+      background:var(--accent);border:none;
+      color:white;font-size:14px;font-weight:600;
+      cursor:pointer;font-family:inherit;transition:opacity .15s;
+    }
+    .ob-launch:hover{opacity:.88;}
+  </style>
+</head>
+<body>
+<div class="ob-shell">
+  <div class="ob-header">
+    <div class="ob-logo">
+      <div class="ob-logo-dot">
+        <svg width="14" height="14" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      </div>
+      শিখবো
+    </div>
+    <span class="ob-step-label" id="stepLabel">Step 1 of 3</span>
+  </div>
+
+  <div class="ob-progress"><div class="ob-progress-fill" id="progressFill" style="width:33%"></div></div>
+
+  <!-- Step 1: Curriculum -->
+  <div class="ob-step active" id="step1">
+    <div class="ob-eyebrow">Getting started</div>
+    <div class="ob-title">Which curriculum are you studying?</div>
+    <div class="ob-sub">This determines your textbook content and language of instruction.</div>
+    <div class="card-grid cols-2">
+      <button class="sel-card" onclick="selectCard('curriculum','NCTB',this)">
+        <div class="sc-icon">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </div>
+        <div class="sc-title">NCTB Bangladesh</div>
+        <div class="sc-desc">SSC / HSC — Bengali medium textbooks</div>
+      </button>
+      <button class="sel-card" onclick="selectCard('curriculum','Edexcel_IAL',this)">
+        <div class="sc-icon">
+          <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        </div>
+        <div class="sc-title">Edexcel International</div>
+        <div class="sc-desc">IAL / IGCSE — English medium A-Level</div>
+      </button>
+    </div>
+    <div class="ob-nav">
+      <button class="ob-back" disabled>
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
+      </button>
+      <button class="ob-next" id="next1" onclick="goStep(2)">
+        Continue
+        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 2: Class -->
+  <div class="ob-step" id="step2">
+    <div class="ob-eyebrow">Your level</div>
+    <div class="ob-title">What class are you in?</div>
+    <div class="ob-sub">We'll tailor the content and difficulty to match your grade level.</div>
+    <div class="card-grid cols-2" id="classCards">
+      <!-- populated by JS based on curriculum -->
+    </div>
+    <div class="ob-nav">
+      <button class="ob-back" onclick="goStep(1)">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
+      </button>
+      <button class="ob-next" id="next2" onclick="goStep(3)">
+        Continue
+        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 3: Subject -->
+  <div class="ob-step" id="step3">
+    <div class="ob-eyebrow">Your subject</div>
+    <div class="ob-title">What's your main subject?</div>
+    <div class="ob-sub">Shikhbo has deep textbook coverage for the subjects below.</div>
+    <div class="card-grid cols-3" id="subjectCards">
+      <!-- populated by JS -->
+    </div>
+    <div class="ob-nav">
+      <button class="ob-back" onclick="goStep(2)">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
+      </button>
+      <button class="ob-next" id="next3" onclick="goFinish()">
+        Finish Setup
+        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Done -->
+  <div class="ob-step" id="stepDone">
+    <div class="done-screen">
+      <div class="done-icon">
+        <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+      <div class="done-title">You're all set</div>
+      <div class="done-sub">Shikhbo is configured for your curriculum. You can change these settings anytime from your profile.</div>
+      <div class="done-summary">
+        <div class="ds-row"><span class="ds-label">Curriculum</span><span class="ds-val" id="sumCurriculum">—</span></div>
+        <div class="ds-row"><span class="ds-label">Class</span><span class="ds-val" id="sumClass">—</span></div>
+        <div class="ds-row"><span class="ds-label">Subject</span><span class="ds-val" id="sumSubject">—</span></div>
+      </div>
+      <button class="ob-launch" onclick="launch()">Start Learning</button>
+    </div>
+  </div>
+
+</div><!-- ob-shell -->
+
+<script>
+const user = {{ user | tojson }};
+
+const state = {
+  step: 1,
+  curriculum: "",
+  class: "",
+  subject: "",
+};
+
+const STEPS_TOTAL = 3;
+
+// ── Card data ──
+const CLASS_OPTIONS = {
+  "NCTB": [
+    {val:"SSC", title:"SSC", desc:"Class 9–10"},
+    {val:"HSC", title:"HSC", desc:"Class 11–12"},
+  ],
+  "Edexcel_IAL": [
+    {val:"A-level", title:"A-Level", desc:"AS / A2"},
+    {val:"O-level", title:"O-Level / IGCSE", desc:"Year 10–11"},
+  ],
+};
+
+const SUBJECT_ICONS = {
+  ICT:      '<svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+  Physics:  '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>',
+  Math:     '<svg viewBox="0 0 24 24"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
+  Chemistry:'<svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v11a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V3M3 9a9 9 0 0 0 18 0"/></svg>',
+  Biology:  '<svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3c0 1.5.75 2.75 2 3.5V12l-3 5h8l-3-5V8.5c1.25-.75 2-2 2-3.5a3 3 0 0 0-3-3z"/></svg>',
+  English:  '<svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+};
+
+const SUBJECT_OPTIONS = {
+  "NCTB": [
+    {val:"ICT", title:"ICT", desc:"Information & Communication Technology"},
+    {val:"Math", title:"Mathematics", desc:"Algebra, geometry, calculus"},
+    {val:"Physics", title:"Physics", desc:"Mechanics, waves, electricity"},
+    {val:"Chemistry", title:"Chemistry", desc:"Organic, inorganic, physical"},
+    {val:"Biology", title:"Biology", desc:"Cell biology, genetics, ecology"},
+  ],
+  "Edexcel_IAL": [
+    {val:"Physics", title:"Physics", desc:"Astrophysics, mechanics, waves"},
+    {val:"Math", title:"Mathematics", desc:"Pure, statistics, mechanics"},
+    {val:"Chemistry", title:"Chemistry", desc:"Organic, inorganic, physical"},
+    {val:"Biology", title:"Biology", desc:"Cell biology, genetics, ecology"},
+  ],
+};
+
+// ── Helpers ──
+function selectCard(field, val, el) {
+  const parent = el.closest(".card-grid");
+  parent.querySelectorAll(".sel-card").forEach(c => c.classList.remove("selected"));
+  el.classList.add("selected");
+  state[field] = val;
+  const nextBtn = document.getElementById(`next${state.step}`);
+  if (nextBtn) updateNextBtn(state.step);
+
+  if (field === "curriculum") {
+    buildClassCards(val);
+    buildSubjectCards(val);
+  }
+}
+
+function updateNextBtn(step) {
+  const fields = {1:"curriculum", 2:"class", 3:"subject"};
+  const btn = document.getElementById(`next${step}`);
+  if (!btn) return;
+  btn.classList.toggle("ready", !!state[fields[step]]);
+}
+
+function buildClassCards(curriculum) {
+  const opts = CLASS_OPTIONS[curriculum] || CLASS_OPTIONS["NCTB"];
+  const container = document.getElementById("classCards");
+  container.innerHTML = "";
+  state.class = "";
+  opts.forEach(o => {
+    const btn = document.createElement("button");
+    btn.className = "sel-card";
+    btn.onclick = function() { selectCard("class", o.val, this); };
+    btn.innerHTML = `<div class="sc-title">${o.title}</div><div class="sc-desc">${o.desc}</div>`;
+    container.appendChild(btn);
+  });
+}
+
+function buildSubjectCards(curriculum) {
+  const opts = SUBJECT_OPTIONS[curriculum] || SUBJECT_OPTIONS["NCTB"];
+  const container = document.getElementById("subjectCards");
+  container.innerHTML = "";
+  state.subject = "";
+  opts.forEach(o => {
+    const btn = document.createElement("button");
+    btn.className = "sel-card";
+    btn.style.flexDirection = "column";
+    btn.onclick = function() { selectCard("subject", o.val, this); };
+    const icon = SUBJECT_ICONS[o.val] || SUBJECT_ICONS["Physics"];
+    btn.innerHTML = `<div class="sc-icon">${icon}</div><div class="sc-title">${o.title}</div><div class="sc-desc">${o.desc}</div>`;
+    container.appendChild(btn);
+  });
+}
+
+function goStep(n) {
+  if (n === 2 && !state.curriculum) return;
+  if (n === 3 && !state.class) return;
+
+  document.getElementById(`step${state.step}`).classList.remove("active");
+  state.step = n;
+  document.getElementById(`step${n}`).classList.add("active");
+
+  const pct = Math.round((n / STEPS_TOTAL) * 100);
+  document.getElementById("progressFill").style.width = pct + "%";
+  document.getElementById("stepLabel").textContent = `Step ${n} of ${STEPS_TOTAL}`;
+  updateNextBtn(n);
+}
+
+async function goFinish() {
+  if (!state.subject) return;
+
+  // Save to profile
+  try {
+    await fetch("/api/update-profile", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        name: user.name,
+        class: state.class,
+        curriculum: state.curriculum,
+      }),
+    });
+  } catch {}
+
+  // Show done screen
+  document.getElementById(`step3`).classList.remove("active");
+  document.getElementById("stepDone").classList.add("active");
+  document.getElementById("progressFill").style.width = "100%";
+  document.getElementById("stepLabel").textContent = "Done";
+
+  const labels = {"NCTB":"NCTB Bangladesh","Edexcel_IAL":"Edexcel International"};
+  document.getElementById("sumCurriculum").textContent = labels[state.curriculum] || state.curriculum;
+  document.getElementById("sumClass").textContent = state.class;
+  document.getElementById("sumSubject").textContent = state.subject;
+}
+
+function launch() {
+  window.location.href = "/chat";
+}
+
+// Initialize class/subject grids with NCTB default so they're ready if user picks NCTB
+buildClassCards("NCTB");
+buildSubjectCards("NCTB");
+</script>
+</body>
+</html>

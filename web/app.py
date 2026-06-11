@@ -76,10 +76,25 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/onboarding")
+@login_required
+def onboarding_page():
+    return render_template("onboarding.html", user=session["user"])
+
+
 @app.route("/chat")
 @login_required
 def chat_page():
-    return render_template("chat.html", user=session["user"])
+    u = session["user"]
+    # First-time users (Google OAuth or missing profile) go to onboarding
+    if not u.get("curriculum") or not u.get("class"):
+        return redirect(url_for("onboarding_page"))
+    return render_template("chat.html", user=u)
+
+
+@app.route("/pricing")
+def pricing_page():
+    return render_template("pricing.html")
 
 
 @app.route("/reset-password")
@@ -150,6 +165,9 @@ def google_callback():
             avatar_url=info.get("picture", ""),
         )
         session["user"] = user
+        # New Google users have no curriculum — send to onboarding
+        if not user.get("curriculum") or not user.get("class"):
+            return redirect(url_for("onboarding_page"))
         return redirect(url_for("chat_page"))
     except Exception as e:
         return redirect(f"/?error={str(e)}")
