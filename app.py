@@ -1,114 +1,532 @@
 """
-Shikhbo OCR Space — FastAPI service running on HuggingFace Docker GPU Space.
+app.py — Shikhbo FastAPI backend.
 
 Endpoints:
-    GET  /health  → readiness + CUDA status
-    POST /ocr     → multipart: file (image) [+ instruction]; returns {"text": "..."}
+  POST /chat   — RAG-grounded answer generation
+  POST /vision — OCR + RAG (GPU only; returns 503 when VISION_ENABLED=false)
+  GET  /health — liveness check
 
-Hardware: Nvidia 1xL4 (24 GB VRAM). Model: Qwen2.5-VL-7B-Instruct in bf16 (~16 GB).
-Set Space variable LLM_MODEL to override the model.
+Run locally (after ingest.py):
+  uvicorn app:app --host 0.0.0.0 --port 7860
 
-Security: set OCR_API_KEY secret in Space → Settings → Secrets.
-All callers must send header:  x-api-key: <OCR_API_KEY>
-
-The Flask web backend (web/) calls this via scripts/ocr_client.py.
+Required env vars:
+  API_TOKEN           — Bearer token checked on every request
+  LLM_MODEL           — HF model ID (default: Qwen/Qwen2.5-VL-7B-Instruct)
+  LLM_DEVICE          — "cpu" | "cuda" (default: cpu)
+  MAX_NEW_TOKENS      — int (default: 512)
+  CONFIDENCE_THRESHOLD— float (default: 0.3)
+  VISION_ENABLED      — "true" | "false" (default: true)
 """
 
+import base64
 import os
-from io import BytesIO
+import tempfile
+import threading
+import time
+from contextlib import asynccontextmanager
+from typing import Any
 
-import torch
-from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
-from PIL import Image
-from transformers import AutoModelForImageTextToText, AutoProcessor
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, Field
 
-# Read LLM_MODEL (set in HF Space variables) with fallbacks.
-# Default: Qwen2.5-VL-7B-Instruct — fits Nvidia 1xL4 (24 GB VRAM) in bf16.
-# For T4 (16 GB), use Qwen/Qwen2.5-VL-3B-Instruct or Qwen/Qwen3-VL-4B-Instruct.
-MODEL_ID = (
-    os.getenv("LLM_MODEL")          # set in HF Space → Settings → Variables
-    or os.getenv("MODEL_ID")        # legacy fallback
-    or "Qwen/Qwen2.5-VL-7B-Instruct"
-)
+# ── env ───────────────────────────────────────────────────────────────────────
 
-# Shared secret. If set, callers must send: x-api-key: <value>
-API_KEY = os.getenv("OCR_API_KEY")
+API_TOKEN = os.environ.get("API_TOKEN", "")
+LLM_MODEL = os.environ.get("LLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct")
+LLM_DEVICE = os.environ.get("LLM_DEVICE", "cpu")
+MAX_NEW_TOKENS = int(os.environ.get("MAX_NEW_TOKENS", "512"))
+VISION_ENABLED = os.environ.get("VISION_ENABLED", "true").lower() == "true"
 
-DEFAULT_INSTRUCTION = (
-    "Extract ALL text from this image exactly as written, preserving line "
-    "breaks, math notation, and Bengali (Bangla) script. Do not translate, "
-    "summarize, or add commentary. Output only the transcribed text."
-)
+# ── startup / shutdown ────────────────────────────────────────────────────────
 
-app = FastAPI(title="Shikhbo OCR")
-_processor = None
-_model = None
+_state: dict[str, Any] = {
+    "rag": None,
+    "llm": None,
+    "llm_processor": None,
+    "llm_failed": False,
+    "llm_model_loaded": None,
+    "startup_errors": [],
+}
+_llm_lock = threading.Lock()
 
 
-@app.on_event("startup")
-def load_model():
-    global _processor, _model
-    print(f"[startup] Loading {MODEL_ID} …")
-    _processor = AutoProcessor.from_pretrained(MODEL_ID, trust_remote_code=True)
-    _model = AutoModelForImageTextToText.from_pretrained(
-        MODEL_ID,
-        torch_dtype=torch.bfloat16,
-        device_map="auto",
-        trust_remote_code=True,
+def _ensure_llm_loaded() -> None:
+    if _state["llm"] is not None or _state["llm_failed"]:
+        return
+    with _llm_lock:
+        if _state["llm"] is not None or _state["llm_failed"]:
+            return
+
+        import torch
+        from transformers import AutoProcessor, AutoModelForVision2Seq, BitsAndBytesConfig
+
+        cuda_ok = torch.cuda.is_available()
+        print(f"[llm] CUDA available: {cuda_ok} | LLM_DEVICE: {LLM_DEVICE}")
+
+        _FALLBACK_MODEL = "Qwen/Qwen2.5-VL-3B-Instruct"
+
+        if LLM_DEVICE != "cpu" and cuda_ok:
+            # (model_id, label, kwargs)
+            load_configs: list[tuple[str, str, dict]] = [
+                (LLM_MODEL, "GPU 4-bit NF4", dict(
+                    quantization_config=BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_quant_type="nf4",
+                        bnb_4bit_compute_dtype=torch.float16,
+                    ),
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    attn_implementation="sdpa",
+                    trust_remote_code=True,
+                )),
+                (LLM_MODEL, "GPU 8-bit", dict(
+                    quantization_config=BitsAndBytesConfig(load_in_8bit=True),
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    attn_implementation="sdpa",
+                    trust_remote_code=True,
+                )),
+                (LLM_MODEL, "GPU float16 no quant", dict(
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    attn_implementation="sdpa",
+                    trust_remote_code=True,
+                )),
+                # Ultimate fallback: 3B model (smaller, fits comfortably on T4)
+                (_FALLBACK_MODEL, "3B GPU 4-bit NF4", dict(
+                    quantization_config=BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_quant_type="nf4",
+                        bnb_4bit_compute_dtype=torch.float16,
+                    ),
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    attn_implementation="sdpa",
+                    trust_remote_code=True,
+                )),
+                (_FALLBACK_MODEL, "3B GPU float16 no quant", dict(
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    attn_implementation="sdpa",
+                    trust_remote_code=True,
+                )),
+            ]
+        else:
+            if LLM_DEVICE != "cpu" and not cuda_ok:
+                print("[warn] LLM_DEVICE=cuda but torch.cuda.is_available()=False — falling back to CPU configs")
+            load_configs = [
+                (LLM_MODEL, "CPU float32", dict(
+                    torch_dtype=torch.float32,
+                    attn_implementation="eager",
+                    trust_remote_code=True,
+                )),
+                (_FALLBACK_MODEL, "3B CPU float32", dict(
+                    torch_dtype=torch.float32,
+                    attn_implementation="eager",
+                    trust_remote_code=True,
+                )),
+            ]
+
+        for model_id, label, kwargs in load_configs:
+            last_exc: str = ""
+            for attempt in range(1, 3):
+                try:
+                    print(f"Loading {model_id} ({label}) attempt {attempt}/2…")
+                    model = AutoModelForVision2Seq.from_pretrained(model_id, **kwargs)
+                    if "device_map" not in kwargs:
+                        model = model.to("cpu")
+                    processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+                    _state["llm"] = model
+                    _state["llm_processor"] = processor
+                    _state["llm_model_loaded"] = f"{model_id} ({label})"
+                    print(f"LLM loaded: {model_id} ({label}).")
+                    return
+                except Exception as exc:
+                    last_exc = str(exc)[:400]
+                    if attempt == 2:
+                        print(f"[warn] {model_id} ({label}) failed: {exc}")
+                        _state["startup_errors"].append(f"{label}: {last_exc}")
+                        break
+                    print(f"[warn] {model_id} ({label}) attempt {attempt} failed: {exc}. Retrying in 5s…")
+                    time.sleep(5)
+
+        _state["llm_failed"] = True
+        msg = f"LLM failed on all configs (primary: {LLM_MODEL}, fallback: {_FALLBACK_MODEL})."
+        _state["startup_errors"].append(msg)
+        print(f"[error] {msg}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        from ingest import run_ingest
+        run_ingest()
+    except Exception as exc:
+        msg = f"Ingest failed: {exc}"
+        print(f"[error] {msg}")
+        _state["startup_errors"].append(msg)
+
+    try:
+        from rag import ShikhboRAG
+        _state["rag"] = ShikhboRAG()
+    except Exception as exc:
+        msg = f"RAG init failed: {exc}"
+        print(f"[error] {msg}")
+        _state["startup_errors"].append(msg)
+
+    # Preload LLM in background so it's ready before first request
+    import threading
+    threading.Thread(target=_ensure_llm_loaded, daemon=True, name="llm-preload").start()
+    print("[startup] LLM preload started in background thread.")
+
+    yield
+
+    _state["rag"] = None
+    _state["llm"] = None
+    _state["llm_processor"] = None
+
+
+app = FastAPI(title="Shikhbo AI Backend", version="1.0.0", lifespan=lifespan)
+
+# ── auth ──────────────────────────────────────────────────────────────────────
+
+_bearer = HTTPBearer()
+
+
+def verify_token(creds: HTTPAuthorizationCredentials = Depends(_bearer)) -> None:
+    if not API_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API_TOKEN env var not set on server",
+        )
+    if creds.credentials != API_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid bearer token",
+        )
+
+
+# ── schemas ───────────────────────────────────────────────────────────────────
+
+class ChatRequest(BaseModel):
+    query: str
+    curriculum: str
+    class_: str = Field(alias="class")
+    subject: str
+    mode: str = "normal"   # normal | simple | quiz | step_by_step
+    quality: str = "fast"  # fast | enhanced (single model loaded; logged only)
+
+    model_config = {"populate_by_name": True}
+
+
+class Source(BaseModel):
+    chunk_id: str
+    chapter: str
+    chapter_no: str
+    page: int
+
+
+class ChatResponse(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
+    answer: str
+    sources: list[Source]
+    grounded: bool
+    model_used: str
+
+
+class VisionRequest(BaseModel):
+    image_base64: str
+    query: str
+    subject: str
+    curriculum: str
+    class_: str = Field(alias="class", default="")
+
+    model_config = {"populate_by_name": True}
+
+
+class VisionResponse(BaseModel):
+    extracted_text: str
+    answer: str
+    sources: list[Source]
+    grounded: bool
+
+
+# ── prompt templates ──────────────────────────────────────────────────────────
+
+def _build_system_prompt(curriculum: str, mode: str, grounded: bool) -> str:
+    is_bengali = curriculum == "NCTB"
+
+    if not grounded:
+        if is_bengali:
+            return (
+                "তুমি শিক্ষার্থীদের জন্য একজন সহায়ক শিক্ষক। "
+                "পাঠ্যবইয়ে এই প্রশ্নের উত্তর সরাসরি পাওয়া যায়নি, তাই "
+                "একটি সাধারণ ব্যাখ্যা দাও এবং উত্তরের শুরুতে স্পষ্টভাবে বলো: "
+                "\"এই প্রশ্নের উত্তর তোমার পাঠ্যবইয়ে সরাসরি পাইনি। নিচের ব্যাখ্যাটি সাধারণ জ্ঞান থেকে:\""
+            )
+        return (
+            "You are a helpful tutor. The answer to this question was not found "
+            "directly in the textbook. Provide a clear general explanation and "
+            "begin your answer with exactly: "
+            "\"I couldn't find this directly in your textbook. The following is a general explanation:\""
+        )
+
+    if mode == "simple":
+        if is_bengali:
+            return (
+                "তুমি একজন বন্ধুত্বপূর্ণ শিক্ষক। নিচের পাঠ্যবইয়ের অংশ ব্যবহার করে "
+                "সহজ ভাষায় ধারণাটি ব্যাখ্যা করো। পরিভাষা কম ব্যবহার করো, "
+                "বাস্তব উদাহরণ দাও, এবং উত্তরের শেষে সূত্র উল্লেখ করো।"
+            )
+        return (
+            "You are a friendly tutor. Using the textbook passages below, "
+            "explain the concept in plain language. Avoid jargon, use real-world "
+            "analogies where helpful, and cite the source at the end."
+        )
+
+    if mode == "quiz":
+        if is_bengali:
+            return (
+                "তুমি একজন পরীক্ষা-প্রস্তুতি সহকারী। নিচের পাঠ্যবইয়ের অংশ থেকে "
+                "৩–৫টি সংক্ষিপ্ত প্রশ্ন তৈরি করো (MCQ বা সংক্ষিপ্ত উত্তর)। "
+                "প্রতিটি প্রশ্নের নিচে সঠিক উত্তর এবং পাঠ্যবইয়ের রেফারেন্স দাও।"
+            )
+        return (
+            "You are an exam-prep assistant. Using the textbook passages below, "
+            "generate 3–5 self-assessment questions (MCQ or short-answer). "
+            "Include the correct answer and textbook reference below each question."
+        )
+
+    if mode == "step_by_step":
+        if is_bengali:
+            return (
+                "তুমি একজন গণিত ও বিজ্ঞান টিউটর। ধাপে ধাপে সমাধান দাও: "
+                "সূত্র → প্রতিস্থাপন → একক → চূড়ান্ত উত্তর। "
+                "পাঠ্যবইয়ের অংশ থেকে প্রাসঙ্গিক তথ্য ব্যবহার করো।"
+            )
+        return (
+            "You are a maths/science tutor. Show a structured solution: "
+            "Formula → Substitution → Units → Final Answer. "
+            "Use relevant information from the textbook passages provided."
+        )
+
+    # default: normal
+    if is_bengali:
+        return (
+            "তুমি একজন পাঠ্যবই-ভিত্তিক শিক্ষক। নিচের পাঠ্যবইয়ের অংশ ব্যবহার করে "
+            "প্রশ্নের উত্তর দাও। উত্তরে অধ্যায় ও পৃষ্ঠা নম্বর উল্লেখ করো।"
+        )
+    return (
+        "You are a textbook-grounded tutor. Answer using the passages below. "
+        "Reference the chapter and page number in your answer."
     )
-    print(f"[startup] Model loaded. CUDA: {torch.cuda.is_available()}")
 
+
+def _build_user_prompt(
+    query: str,
+    chunks: list[dict],
+    curriculum: str,
+    grounded: bool,
+) -> str:
+    if not grounded or not chunks:
+        return query
+
+    is_bengali = curriculum == "NCTB"
+    sep = "\n---\n"
+    passages = sep.join(
+        f"[{c['chunk_id']} | {c.get('chapter_title', '')} p.{c.get('page_no', '?')}]\n{c['content']}"
+        for c in chunks
+    )
+    if is_bengali:
+        return f"পাঠ্যবইয়ের অংশ:\n{passages}\n\nপ্রশ্ন: {query}"
+    return f"Textbook passages:\n{passages}\n\nQuestion: {query}"
+
+
+# ── LLM generation ────────────────────────────────────────────────────────────
+
+def _generate(system: str, user: str) -> str:
+    model = _state["llm"]
+    processor = _state["llm_processor"]
+    if model is None or processor is None:
+        return "[LLM not loaded — check server logs]"
+
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": [{"type": "text", "text": user}]},
+    ]
+    try:
+        import torch
+        text_input = processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        inputs = processor(text=[text_input], return_tensors="pt").to(model.device)
+        with torch.no_grad():
+            output_ids = model.generate(
+                **inputs,
+                max_new_tokens=MAX_NEW_TOKENS,
+                do_sample=False,
+                repetition_penalty=1.3,
+            )
+        trimmed = output_ids[:, inputs["input_ids"].shape[1]:]
+        return processor.batch_decode(trimmed, skip_special_tokens=True)[0].strip()
+    except Exception as exc:
+        return f"[Generation error: {exc}]"
+
+
+# ── /chat endpoint ────────────────────────────────────────────────────────────
+
+@app.post("/chat", response_model=ChatResponse, dependencies=[Depends(verify_token)])
+def chat(req: ChatRequest) -> ChatResponse:
+    rag = _state["rag"]
+    if rag is None:
+        raise HTTPException(status_code=503, detail="RAG not initialised")
+
+    _ensure_llm_loaded()
+    if _state["llm"] is None:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM unavailable — check /health for details.",
+        )
+
+    try:
+        chunks, grounded = rag.retrieve(
+            query=req.query,
+            curriculum=req.curriculum,
+            subject=req.subject,
+            class_=req.class_,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    system_prompt = _build_system_prompt(req.curriculum, req.mode, grounded)
+    user_prompt = _build_user_prompt(req.query, chunks, req.curriculum, grounded)
+    answer = _generate(system_prompt, user_prompt)
+
+    sources = [Source(**s) for s in rag.format_sources(chunks)]
+
+    return ChatResponse(
+        answer=answer,
+        sources=sources,
+        grounded=grounded,
+        model_used=LLM_MODEL,
+    )
+
+
+# ── /vision endpoint ──────────────────────────────────────────────────────────
+
+@app.post("/vision", response_model=VisionResponse, dependencies=[Depends(verify_token)])
+def vision(req: VisionRequest) -> VisionResponse:
+    if not VISION_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="Vision not enabled. Set VISION_ENABLED=true.",
+        )
+
+    _ensure_llm_loaded()
+    model = _state["llm"]
+    processor = _state["llm_processor"]
+    if model is None or processor is None:
+        raise HTTPException(status_code=503, detail="VL model not loaded.")
+
+    try:
+        image_bytes = base64.b64decode(req.image_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid base64 image")
+
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+        tmp.write(image_bytes)
+        tmp_path = tmp.name
+
+    try:
+        from PIL import Image
+        import torch
+        from qwen_vl_utils import process_vision_info
+        image = Image.open(tmp_path).convert("RGB")
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image},
+                    {
+                        "type": "text",
+                        "text": f"Extract all text from this image. Then answer: {req.query}",
+                    },
+                ],
+            }
+        ]
+        text_input = processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        image_inputs, video_inputs = process_vision_info(messages)
+        inputs = processor(
+            text=[text_input],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        )
+        inputs = {k: v.to(model.device) for k, v in inputs.items()}
+
+        with torch.no_grad():
+            generated_ids = model.generate(
+                **inputs,
+                max_new_tokens=512,
+                do_sample=False,
+                repetition_penalty=1.3,
+            )
+        trimmed = [out[len(in_ids):] for in_ids, out in zip(inputs["input_ids"], generated_ids)]
+        raw_output = processor.batch_decode(trimmed, skip_special_tokens=True)[0]
+
+        parts = raw_output.split("\n\n", 1)
+        extracted_text = parts[0].strip()
+        ocr_answer = parts[1].strip() if len(parts) > 1 else raw_output.strip()
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Vision processing error: {exc}")
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    rag = _state["rag"]
+    combined_query = f"{extracted_text}\n\n{req.query}".strip()
+    try:
+        chunks, grounded = rag.retrieve(
+            query=combined_query,
+            curriculum=req.curriculum,
+            subject=req.subject,
+            class_=req.class_,
+        )
+    except ValueError:
+        chunks, grounded = [], False
+
+    sources = [Source(**s) for s in rag.format_sources(chunks)]
+
+    return VisionResponse(
+        extracted_text=extracted_text,
+        answer=ocr_answer,
+        sources=sources,
+        grounded=grounded,
+    )
+
+
+# ── /health endpoint ──────────────────────────────────────────────────────────
 
 @app.get("/health")
-def health():
+def health() -> dict:
+    errors = _state["startup_errors"]
+    degraded = bool(errors) or _state["llm_failed"] or _state["rag"] is None
     return {
-        "status": "ok" if _model is not None else "loading",
-        "model": MODEL_ID,
-        "cuda": torch.cuda.is_available(),
+        "status": "degraded" if degraded else "ok",
+        "rag_loaded": _state["rag"] is not None,
+        "llm_loaded": _state["llm"] is not None,
+        "llm_failed": _state["llm_failed"],
+        "llm_model_loaded": _state["llm_model_loaded"],
+        "model_target": LLM_MODEL,
+        "device": LLM_DEVICE,
+        "errors": errors,
     }
-
-
-@app.post("/ocr")
-async def ocr(
-    file: UploadFile = File(...),
-    instruction: str = Form(DEFAULT_INSTRUCTION),
-    x_api_key: str | None = Header(default=None),
-):
-    if API_KEY and x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid or missing API key")
-    if _model is None:
-        raise HTTPException(status_code=503, detail="Model still loading")
-
-    raw = await file.read()
-    try:
-        image = Image.open(BytesIO(raw)).convert("RGB")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Could not read image file")
-
-    instruction = (instruction or DEFAULT_INSTRUCTION).strip()
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "image", "image": image},
-                {"type": "text", "text": instruction},
-            ],
-        }
-    ]
-
-    inputs = _processor.apply_chat_template(
-        messages,
-        tokenize=True,
-        add_generation_prompt=True,
-        return_dict=True,
-        return_tensors="pt",
-    ).to(_model.device)
-
-    with torch.no_grad():
-        generated = _model.generate(**inputs, max_new_tokens=2048, do_sample=False)
-
-    trimmed = generated[:, inputs["input_ids"].shape[1]:]
-    text = _processor.batch_decode(
-        trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-    )[0]
-    return {"text": text.strip()}

@@ -9,6 +9,7 @@ Run locally:
 Env vars: see .env.example
 """
 
+import base64
 import json
 import os
 from functools import wraps
@@ -31,7 +32,7 @@ from scripts.db import (
 from scripts.auth.otp_email import send_otp
 from scripts.auth.google_oauth import register_oauth
 from scripts import hf_client
-from scripts.ocr_client import is_image, ocr_image
+from scripts.ocr_client import is_image
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "shikhbo_dev_secret_2024")
@@ -275,25 +276,47 @@ def query():
     except Exception:
         pass
 
-    # Image uploaded → OCR → feed extracted text into the regular chat stream
+    # Image uploaded → HF Space /vision (OCR+RAG) → stream answer
     if file_path and is_image(file_path):
         def image_generate():
             try:
                 yield json.dumps({"status": "reading_image"}) + "\n"
-                extracted = ocr_image(file_path)
+
+                with open(file_path, "rb") as fh:
+                    image_b64 = base64.b64encode(fh.read()).decode()
+
+                result = hf_client.vision_query(image_b64, query_text, subject, curriculum, class_)
+
+                if "error" in result:
+                    yield json.dumps({"chunk": f"[Image error: {result['error']}]"}) + "\n"
+                    return
+
+                extracted = result.get("extracted_text", "")
+                answer = result.get("answer", "")
+                sources = result.get("sources", [])
+                grounded = result.get("grounded", False)
+
+                if grounded and sources:
+                    yield json.dumps({"status": "grounded", "sources": sources}) + "\n"
 
                 if extracted:
-                    effective_query = f"[Extracted from image]\n{extracted}\n\n{query_text}"
-                else:
-                    # OCR unavailable (Space sleeping) — ask Gemini to read the image directly
-                    yield json.dumps({"status": "OCR unavailable — asking AI directly"}) + "\n"
-                    effective_query = query_text
+                    yield json.dumps({"status": "image_read", "extracted_text": extracted[:200]}) + "\n"
 
-                assistant_reply = []
-                for payload in hf_client.chat_stream(effective_query, curriculum, class_, subject, mode):
-                    if "chunk" in payload:
-                        assistant_reply.append(payload["chunk"])
-                    yield json.dumps(payload) + "\n"
+                # Stream answer in word chunks
+                assistant_reply: list[str] = []
+                words = answer.split(" ")
+                buf: list[str] = []
+                for word in words:
+                    buf.append(word)
+                    if len(buf) >= 8:
+                        chunk = " ".join(buf) + " "
+                        assistant_reply.append(chunk)
+                        yield json.dumps({"chunk": chunk}) + "\n"
+                        buf = []
+                if buf:
+                    chunk = " ".join(buf)
+                    assistant_reply.append(chunk)
+                    yield json.dumps({"chunk": chunk}) + "\n"
 
                 try:
                     save_message(session_id, "assistant", "".join(assistant_reply))
