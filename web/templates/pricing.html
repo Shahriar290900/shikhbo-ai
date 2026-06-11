@@ -21,8 +21,8 @@ html,body{min-height:100vh;font-family:'Inter','Noto Sans Bengali',sans-serif;}
 /* ── Topnav ── */
 .nav{display:flex;align-items:center;justify-content:space-between;padding:14px 32px;flex-shrink:0;}
 .nav-logo{display:flex;align-items:center;gap:9px;text-decoration:none;}
-.logo-dot{width:30px;height:30px;border-radius:50%;background:#EE7A6E;display:flex;align-items:center;justify-content:center;}
-.logo-dot svg{width:14px;height:14px;stroke:white;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.logo-dot{width:34px;height:34px;border-radius:50%;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;}
+.logo-dot svg{width:30px;height:30px;}
 .logo-name{font-size:16px;font-weight:600;color:var(--text);}
 .nav-right{display:flex;align-items:center;gap:10px;}
 .nav-back{display:flex;align-items:center;gap:5px;padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-size:13px;cursor:pointer;font-family:inherit;transition:all .14s;text-decoration:none;}
@@ -151,6 +151,18 @@ html,body{min-height:100vh;font-family:'Inter','Noto Sans Bengali',sans-serif;}
 
 /* Divider */
 .hr{height:1px;background:var(--border);margin:12px 0;}
+
+/* ── Mobile ── */
+@media(max-width:640px){
+  .nav{padding:12px 16px;}
+  .hero{padding:32px 16px 24px;}
+  .hero-title{font-size:26px;}
+  .tiers{padding:0 14px 40px;gap:14px;}
+  .tier-card{min-width:unset;max-width:100%;}
+  .pay-modal{max-width:100%;margin:8px;}
+  .method-tabs{gap:6px;padding:12px 14px 0;}
+  .method-panes{padding:14px 16px 16px;}
+}
 </style>
 </head>
 <body>
@@ -159,7 +171,25 @@ html,body{min-height:100vh;font-family:'Inter','Noto Sans Bengali',sans-serif;}
   <!-- Nav -->
   <nav class="nav">
     <a href="/chat" class="nav-logo">
-      <div class="logo-dot"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+      <div class="logo-dot">
+        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 37C13 37 7 31.2 7 24V18.5L20 14.5L33 18.5V24C33 31.2 27 37 20 37Z" fill="#43A047"/>
+          <path d="M7 18.5C5 15.5 4.5 12 7 9.5L11.5 14.5Z" fill="#F4511E"/>
+          <path d="M33 18.5C35 15.5 35.5 12 33 9.5L28.5 14.5Z" fill="#F4511E"/>
+          <circle cx="20" cy="15" r="10" fill="#4CAF50"/>
+          <path d="M12.5 11.5L14.5 5.5L17.5 11.5Z" fill="#E53935"/>
+          <path d="M27.5 11.5L25.5 5.5L22.5 11.5Z" fill="#E53935"/>
+          <circle cx="16" cy="14" r="3.8" fill="white"/>
+          <circle cx="24" cy="14" r="3.8" fill="white"/>
+          <circle cx="16" cy="14" r="2.2" fill="#00695C"/>
+          <circle cx="24" cy="14" r="2.2" fill="#00695C"/>
+          <circle cx="16.8" cy="13.2" r="0.8" fill="white"/>
+          <circle cx="24.8" cy="13.2" r="0.8" fill="white"/>
+          <path d="M18.5 17.5L20 20L21.5 17.5Z" fill="#F9A825"/>
+          <rect x="15.5" y="28.5" width="9" height="6" rx="1.5" fill="#FFB300"/>
+          <line x1="20" y1="28.5" x2="20" y2="34.5" stroke="white" stroke-width="0.9" opacity="0.7"/>
+        </svg>
+      </div>
       <span class="logo-name">Shikhbo</span>
     </a>
     <div class="nav-right">
